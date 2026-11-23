@@ -4,7 +4,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 35.01,
+  "t": 34.78,
   "fail": "FAIL  natShiftRightHuge: resource limit exceeded (fuel)"
  },
  {
@@ -12,7 +12,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.09,
+  "t": 0.1,
   "fail": ""
  },
  {
@@ -28,7 +28,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.76,
+  "t": 0.8,
   "fail": ""
  },
  {
@@ -76,7 +76,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 120.1,
+  "t": 60.01,
   "fail": ""
  },
  {
@@ -84,7 +84,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -92,7 +92,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 18.04,
+  "t": 18.97,
   "fail": ""
  },
  {
@@ -132,7 +132,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.02,
+  "t": 0.03,
   "fail": ""
  },
  {
@@ -140,7 +140,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.36,
+  "t": 0.37,
   "fail": ""
  },
  {
@@ -148,7 +148,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 120.1,
+  "t": 60.06,
   "fail": ""
  },
  {
@@ -156,7 +156,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 8.85,
+  "t": 8.44,
   "fail": ""
  },
  {
@@ -164,7 +164,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -186,17 +186,17 @@
  {
   "name": "good/perf/ite-taken-branch.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 112.07,
-  "fail": "FAIL  ite_taken_branch_1: resource limit exceeded (fuel)"
+  "rc": "timeout",
+  "got": "timeout",
+  "t": 60.02,
+  "fail": ""
  },
  {
   "name": "good/perf/let-fold.ndjson",
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 5.92,
+  "t": 10.34,
   "fail": ""
  },
  {
@@ -204,7 +204,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 7.15,
+  "t": 11.19,
   "fail": ""
  },
  {
@@ -212,7 +212,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.89,
+  "t": 2.28,
   "fail": ""
  },
  {
@@ -220,7 +220,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 9.93,
+  "t": 15.35,
   "fail": ""
  },
  {
@@ -228,7 +228,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 19.15,
+  "t": 23.14,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -236,7 +236,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 21.02,
+  "t": 24.0,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -244,7 +244,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 19.54,
+  "t": 19.55,
   "fail": ""
  },
  {
@@ -276,7 +276,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 20.2,
+  "t": 19.64,
   "fail": "FAIL  proj_lazy_struct: resource limit exceeded (fuel)"
  },
  {
@@ -292,7 +292,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.89,
+  "t": 0.88,
   "fail": ""
  },
  {
@@ -308,7 +308,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.05,
+  "t": 0.04,
   "fail": ""
  },
  {
@@ -324,7 +324,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 50.02,
+  "t": 49.06,
   "fail": "FAIL  short_circuit_and_1: resource limit exceeded (fuel)"
  },
  {
@@ -332,7 +332,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 48.36,
+  "t": 47.49,
   "fail": ""
  },
  {
@@ -340,7 +340,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 46.39,
+  "t": 44.85,
   "fail": ""
  },
  {
@@ -348,7 +348,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -420,7 +420,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -836,7 +836,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1124,7 +1124,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive _private.Test.0.S: constructor field count mismatch"
  },
  {
@@ -1146,10 +1146,10 @@
  {
   "name": "bad/bugs/large-elim-param.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive MyBool: recursor of MyBool: large elimination is not allowed"
  },
  {
   "name": "bad/bugs/large-elim-prop-bool.ndjson",
@@ -1212,7 +1212,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive T: bad recursor rule"
  },
  {
@@ -1221,7 +1221,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.01,
-  "fail": "FAIL  bad: argument type mismatch: e.0 : ((L (E (W.mk (P.mk ((fun x : \u2026 => \u2026) 24083))))) (W.mk (P.mk ((fun x : \u2026 => \u2026) 24083))).0.0), expected ((L (E (W.mk (P.m"
+  "fail": "FAIL  inductive E: projection type name does not match the structure"
  },
  {
   "name": "bad/bugs/open-term-cache-context.ndjson",
@@ -1234,10 +1234,10 @@
  {
   "name": "bad/bugs/orphan-rec.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive False: wrong number of recursors"
  },
  {
   "name": "bad/bugs/pi-closure-context.ndjson",
@@ -1258,10 +1258,10 @@
  {
   "name": "bad/bugs/proj-of-imax-prop.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  imaxProjBool: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {
   "name": "bad/bugs/proj-of-stuck-prop.ndjson",
@@ -1282,10 +1282,10 @@
  {
   "name": "bad/bugs/quot-bad-type.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  quot Quot: Quot constant has the wrong type"
  },
  {
   "name": "bad/bugs/rec-k-lie.ndjson",
@@ -1300,7 +1300,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.04,
+  "t": 0.05,
   "fail": "FAIL  inductive Native64TwoHashOwner: invalid (nested?) occurrence of the inductive type in (((((((\u2026 \u2026) Native64TwoHashOwner) (Native64TwoHashB.0.2525080234 (\u2026 "
  },
  {
@@ -1308,7 +1308,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.04,
+  "t": 0.06,
   "fail": "FAIL  Issue.proposition: argument type mismatch: Issue.gateWitness : Issue.GateQ, expected Issue.GateP"
  },
  {
@@ -1324,7 +1324,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive J: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive J.j1)"
  },
  {
@@ -1348,7 +1348,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.1,
+  "t": 0.12,
   "fail": "FAIL  strLitUtf8Bad: value has type (((Eq String) \"\u00e9\") \"\u00e9\"), expected (((Eq String) \"\u00e9\") (String.ofList (((List.cons Char) (Char.ofNat ((\u2026 \u2026) (\u2026 \u2026)))) (((List.c"
  },
  {
@@ -1362,10 +1362,10 @@
  {
   "name": "bad/other/extra-rec.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive False: wrong number of recursors"
  },
  {
   "name": "bad/other/inductive-undeclared-universe.ndjson",
@@ -1373,7 +1373,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive U: recursor of U: expected large elimination"
+  "fail": "FAIL  inductive U: undeclared universe level parameter"
  },
  {
   "name": "bad/other/nat-lit-add-bad.ndjson",
@@ -1404,7 +1404,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 23.82,
+  "t": 22.2,
   "fail": "FAIL  ite_taken_branch_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1412,7 +1412,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 1.13,
+  "t": 1.07,
   "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
  },
  {
@@ -1420,7 +1420,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 49.97,
+  "t": 45.39,
   "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
  },
  {
@@ -1428,7 +1428,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 17.92,
+  "t": 18.43,
   "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
  },
  {
@@ -1452,7 +1452,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.45,
+  "t": 18.8,
   "fail": "FAIL  short_circuit_and_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1460,7 +1460,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.44,
+  "t": 17.96,
   "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
  },
  {
@@ -1514,10 +1514,10 @@
  {
   "name": "bad/tutorial/019_tut06_bad01.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  tut06_bad01: duplicate universe parameter"
  },
  {
   "name": "bad/tutorial/046_inductBadNonSort.ndjson",
@@ -1525,7 +1525,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive inductBadNonSort: type expected: constType"
+  "fail": "FAIL  inductive inductBadNonSort: wrong number of recursors"
  },
  {
   "name": "bad/tutorial/047_inductBadNonSort2.ndjson",
@@ -1533,7 +1533,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive inductBadNonSort2: recursor check: inductive type is not a sort"
+  "fail": "FAIL  inductive inductBadNonSort2: wrong number of recursors"
  },
  {
   "name": "bad/tutorial/048_inductLevelParam.ndjson",
@@ -1541,7 +1541,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive inductLevelParam: recursor inductLevelParam.rec missing"
+  "fail": "FAIL  inductive inductLevelParam: duplicate universe parameter"
  },
  {
   "name": "bad/tutorial/049_inductTooFewParams.ndjson",
@@ -1549,7 +1549,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive inductTooFewParams: recursor check: bad inductive type"
+  "fail": "FAIL  inductive inductTooFewParams: wrong number of recursors"
  },
  {
   "name": "bad/tutorial/050_inductWrongCtorParams.ndjson",
@@ -1642,34 +1642,34 @@
  {
   "name": "bad/tutorial/090_projProp2.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  projProp2: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {
   "name": "bad/tutorial/092_projProp4.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  projProp4: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {
   "name": "bad/tutorial/093_projProp5.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  projProp5: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {
   "name": "bad/tutorial/094_projProp6.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  projProp6: invalid projection: a later field depends on a non-proof field of a Prop structure"
  },
  {
   "name": "bad/tutorial/096_projIndexData.ndjson",
@@ -1677,7 +1677,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  projIndexData: value has type (x : N) -> (x : (ProjDataIndex #0)) -> True, expected (x : N) -> (x : (ProjDataIndex #0)) -> N"
+  "fail": "FAIL  projIndexData: projection type name does not match the structure"
  },
  {
   "name": "bad/tutorial/097_projIndexData2.ndjson",
@@ -1685,7 +1685,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  projIndexData2: projection index out of range"
+  "fail": "FAIL  projIndexData2: projection type name does not match the structure"
  },
  {
   "name": "bad/tutorial/100_ruleKbad.ndjson",
@@ -1762,34 +1762,34 @@
  {
   "name": "bad/tutorial/132_dup_defs.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  dup_defs: duplicate declaration dup_defs"
  },
  {
   "name": "bad/tutorial/133_dup_ind_def.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive dup_ind_def: duplicate declaration dup_ind_def"
  },
  {
   "name": "bad/tutorial/134_dup_ctor_def.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive dup_ctor_def: duplicate declaration dup_ctor_def.mk"
  },
  {
   "name": "bad/tutorial/135_dup_rec_def.ndjson",
   "exp": "bad",
-  "rc": 0,
-  "got": "accept",
+  "rc": 1,
+  "got": "reject",
   "t": 0.0,
-  "fail": ""
+  "fail": "FAIL  inductive dup_rec_def: duplicate declaration dup_rec_def.rec"
  },
  {
   "name": "bad/tutorial/136_misnamed_rec_user.ndjson",
@@ -1813,7 +1813,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive dup_ctor_rec: bad recursor rule"
+  "fail": "FAIL  inductive dup_ctor_rec: duplicate declaration dup_ctor_rec.rec"
  },
  {
   "name": "bad/tutorial/139_DupConCon.ndjson",
@@ -1821,7 +1821,7 @@
   "rc": 1,
   "got": "reject",
   "t": 0.0,
-  "fail": "FAIL  inductive DupConCon: recursor DupConCon.rec: rule for dup_ind_con_con.mk differs from the derived rule"
+  "fail": "FAIL  inductive DupConCon: duplicate declaration dup_ind_con_con.mk"
  },
  {
   "name": "bad/tutorial/140_falseFromUnsafe.ndjson",

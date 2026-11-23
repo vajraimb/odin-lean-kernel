@@ -45,3 +45,9 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 - bad: 误放行 14 -> 5，正确拒绝 78 -> 87
 - good: 接受 125，拒绝 10，超时 3（60 秒限制）
 - 仍误放行：large-elim-param, orphan-rec, quot-bad-type, extra-rec, tut06_bad01
+
+## 更新：bad 测试全部拒绝
+
+- bad: 误放行 5 -> 0，92 个全部正确拒绝
+- good: 接受 125，拒绝 10，超时 3（60 秒限制），与上一轮相同
+- 新增检查：Quot 四个常量的类型、重复宇宙参数、未声明宇宙参数、递归子数量（类型数加嵌套数）、可能为 Prop 的归纳类型的大消去限制

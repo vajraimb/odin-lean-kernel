@@ -1164,9 +1164,90 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 
 // ---------------------------------------------------------------- declarations
 
+
+// Expected types of the four Quot constants (Lean fixes them in the kernel)
+quot_expected_type :: proc(qk: int, lp: []int) -> (t: int, ok: bool) {
+	nQuot, f1 := find_name("Quot");     nMk, f2 := find_name("Quot.mk"); nEq, f3 := find_name("Eq")
+	nm := add_name("x")
+	need := qk == 0 ? 1 : qk == 2 ? 2 : 1
+	if len(lp) != need do return 0, false
+	if qk > 0 && !f1 do return 0, false
+	if qk == 3 && !f2 do return 0, false
+	if qk == 2 && !f3 do return 0, false
+	lv :: proc(n: int) -> []int { r := make([]int, 1); r[0] = add_level(Level{.Param, n, 0}); return r }
+	u := add_level(Level{.Param, lp[0], 0})
+	v := len(lp) > 1 ? add_level(Level{.Param, lp[1], 0}) : 0
+	su, sv, prop := mk_sort(u), mk_sort(v), mk_sort(0)
+	B :: mk_bvar
+	Pi :: proc(a, b: int) -> int { return mk_binder(.Pi, add_name("x"), a, b) }
+	A :: mk_app
+	rel := Pi(B(0), Pi(B(1), prop))
+	quot := mk_const(nQuot, lv(lp[0]))
+	switch qk {
+	case 0:
+		return Pi(su, Pi(rel, su)), true
+	case 1:
+		return Pi(su, Pi(rel, Pi(B(1), A(A(quot, B(2)), B(1))))), true
+	case 2:
+		eqc := mk_const(nEq, lv(lp[1]))
+		hyp := Pi(B(3), Pi(B(4), Pi(A(A(B(4), B(1)), B(0)), A(A(A(eqc, B(4)), A(B(3), B(2))), A(B(3), B(1))))))
+		return Pi(su, Pi(rel, Pi(sv, Pi(Pi(B(2), B(1)), Pi(hyp, Pi(A(A(quot, B(4)), B(3)), B(3))))))), true
+	}
+	mk := mk_const(nMk, lv(lp[0]))
+	beta := Pi(A(A(quot, B(1)), B(0)), prop)
+	mkt := Pi(B(2), A(B(1), A(A(A(mk, B(3)), B(2)), B(0))))
+	return Pi(su, Pi(rel, Pi(beta, Pi(mkt, Pi(A(A(quot, B(3)), B(2)), A(B(2), B(0))))))), true
+}
+
+lvl_declared :: proc(l: int, lp: []int) -> bool {
+	lv := levels[l]
+	switch lv.kind {
+	case .Zero: return true
+	case .Succ: return lvl_declared(lv.a, lp)
+	case .Max, .IMax: return lvl_declared(lv.a, lp) && lvl_declared(lv.b, lp)
+	case .Param:
+		for p in lp do if p == lv.a do return true
+		return false
+	}
+	return true
+}
+
+declared_visit :: proc(e: int, lp: []int, seen: ^map[int]bool) -> bool {
+	if e in seen^ do return true
+	seen[e] = true
+	ex := exprs[e]
+	#partial switch ex.kind {
+	case .Sort: return lvl_declared(ex.a, lp)
+	case .Const:
+		for u in ex.us do if !lvl_declared(u, lp) do return false
+	case .App: return declared_visit(ex.a, lp, seen) && declared_visit(ex.b, lp, seen)
+	case .Lam, .Pi: return declared_visit(ex.b, lp, seen) && declared_visit(ex.c, lp, seen)
+	case .Let: return declared_visit(ex.b, lp, seen) && declared_visit(ex.c, lp, seen) && declared_visit(ex.d, lp, seen)
+	case .MData: return declared_visit(ex.a, lp, seen)
+	case .Proj: return declared_visit(ex.c, lp, seen)
+	}
+	return true
+}
+
+// every universe parameter used by e must be declared
+declared_ok :: proc(e: int, lp: []int) -> bool {
+	seen := make(map[int]bool)
+	defer delete(seen)
+	if !declared_visit(e, lp, &seen) do return fail("undeclared universe level parameter")
+	return true
+}
+
+has_dup :: proc(xs: []int) -> bool {
+	for i in 0 ..< len(xs) do for j in i + 1 ..< len(xs) do if xs[i] == xs[j] do return true
+	return false
+}
+
 check_decl :: proc(d: Decl) -> bool {
+	if has_dup(d.lparams) do return fail("duplicate universe parameter")
+	declared_ok(d.type, d.lparams) or_return
 	_ = ensure_sort(d.type) or_return
 	if d.kind == .Axiom do return true
+	declared_ok(d.value, d.lparams) or_return
 	vt := infer(d.value) or_return
 	if !def_eq(vt, d.type) {
 		return fail("value has type %s, expected %s", expr_str(vt), expr_str(d.type))
@@ -1267,7 +1348,8 @@ verify_block :: proc(block: []int, rec_names: []int, n_orig: int) -> bool {
 		for i in idx[j] do append(&args, i)
 		majors[j] = fresh_fvar(add_name("t"), mk_apps(ind_consts[j], args[:]))
 	}
-	is_prop_ind := is_zero_level(sort_level)
+	is_prop_ind := !level_never_zero(sort_level)
+	is_real_prop := is_zero_level(sort_level)
 
 	// constructors: fields and recursive fields
 	infos := make([][dynamic]Ctor_Info, n)
@@ -1430,7 +1512,7 @@ verify_block :: proc(block: []int, rec_names: []int, n_orig: int) -> bool {
 		if rd.nparams != ind0.nparams || rd.nmotives != n || rd.nminors != total_ctors || rd.nindices != env[block[j]].nindices {
 			return fail("recursor %s has wrong parameter/motive/minor/index counts", names[rec_id[j]])
 		}
-		expect_k := is_prop_ind && n == 1 && len(infos[0]) == 1 && len(infos[0][0].fields) == 0
+		expect_k := is_real_prop && n == 1 && len(infos[0]) == 1 && len(infos[0][0].fields) == 0
 		if rd.k != expect_k do return fail("recursor %s has wrong K flag", names[rec_id[j]])
 		fvs := make([dynamic]int)
 		defer delete(fvs)
@@ -1847,6 +1929,14 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 			}
 		}
 	}
+	for grp in ([]json.Value{types, ctors, recs}) {
+		for item in grp.(json.Array) do if has_dup(jints(jget(item, "levelParams"))) do return first, fail("duplicate universe parameter")
+	}
+	{
+		nn := 0
+		for t in ta do nn = max(nn, jint(jget(t, "numNested")))
+		if len(recs.(json.Array)) != len(ta) + nn do return first, fail("wrong number of recursors")
+	}
 	num_nested := 0
 	for t in ta {
 		nm, _ := jobj(t, "name"); ty, _ := jobj(t, "type"); lp, _ := jobj(t, "levelParams")
@@ -1855,6 +1945,7 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 		d.ctors = jints(jget(t, "ctors"))
 		if b, is_b := jget(t, "isRec").(json.Boolean); is_b do d.is_rec = b
 		num_nested = max(num_nested, jint(jget(t, "numNested")))
+		declared_ok(d.type, d.lparams) or_return
 		_ = ensure_sort(d.type) or_return
 		env[jint(nm)] = d
 		append(&added, jint(nm))
@@ -1864,6 +1955,7 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 		d := Decl{kind = .Ctor, lparams = jints(lp), type = jint(ty), height = -1}
 		d.nparams = jint(jget(c, "numParams")); d.nfields = jint(jget(c, "numFields"))
 		d.induct = jint(jget(c, "induct"))
+		declared_ok(d.type, d.lparams) or_return
 		_ = ensure_sort(d.type) or_return
 		ind, found := env[d.induct]
 		if !found do return first, fail("constructor of unknown inductive")
@@ -1886,6 +1978,7 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 			append(&rules, Rule{jint(jget(ru, "ctor")), jint(jget(ru, "nfields")), jint(jget(ru, "rhs"))})
 		}
 		d.rules = rules[:]
+		declared_ok(d.type, d.lparams) or_return
 		_ = ensure_sort(d.type) or_return
 		env[jint(nm)] = d
 		append(&added, jint(nm))
@@ -1899,6 +1992,7 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 		for ru in d.rules {
 			cd, f := env[ru.ctor]
 			if !f || cd.kind != .Ctor || cd.nfields != ru.nfields do return first, fail("bad recursor rule")
+			declared_ok(ru.rhs, d.lparams) or_return
 			_ = infer(ru.rhs) or_return
 		}
 	}
@@ -2099,7 +2193,17 @@ main :: proc() {
 				continue
 			}
 			qd := Decl{kind = .Quot, lparams = jints(jget(x, "levelParams")), type = jint(jget(x, "type")), height = -1, qkind = qk}
-			if _, good := ensure_sort(qd.type); good {
+			good := !has_dup(qd.lparams)
+			if good { good = declared_ok(qd.type, qd.lparams) }
+			if good { _, good = ensure_sort(qd.type) }
+			if good {
+				et, eok := quot_expected_type(qk, qd.lparams)
+				if !eok || !def_eq(et, qd.type) {
+					good = false
+					failure = "Quot constant has the wrong type"
+				}
+			} else if failure == nil { failure = "duplicate universe parameter" }
+			if good {
 				env[nm] = qd
 				fmt.printf("OK    quot %s\n", names[nm])
 				n_ok += 1
