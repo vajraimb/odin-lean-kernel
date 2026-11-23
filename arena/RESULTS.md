@@ -1,0 +1,41 @@
+# Lean Kernel Arena results (odin-lean-kernel)
+
+Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>; python3 run.py ./kernel 120`.
+
+| expected | accepted | rejected | timeout |
+|---|---|---|---|
+| good (138) | 125 | 11 | 2 |
+| bad (92) | 14 | 78 | 0 |
+
+## Wrongly accepted (soundness bugs)
+
+- bad/bugs/large-elim-param.ndjson
+- bad/bugs/orphan-rec.ndjson
+- bad/bugs/proj-of-imax-prop.ndjson
+- bad/bugs/quot-bad-type.ndjson
+- bad/other/extra-rec.ndjson
+- bad/tutorial/019_tut06_bad01.ndjson
+- bad/tutorial/090_projProp2.ndjson
+- bad/tutorial/092_projProp4.ndjson
+- bad/tutorial/093_projProp5.ndjson
+- bad/tutorial/094_projProp6.ndjson
+- bad/tutorial/132_dup_defs.ndjson
+- bad/tutorial/133_dup_ind_def.ndjson
+- bad/tutorial/134_dup_ctor_def.ndjson
+- bad/tutorial/135_dup_rec_def.ndjson
+
+## Wrongly rejected or timed out
+
+- good/bugs/nat-shift-huge.ndjson (reject, 35.01s) FAIL  natShiftRightHuge: resource limit exceeded (fuel)
+- good/perf/app-lam.ndjson (timeout, 120.1s) 
+- good/perf/gf3-matrix-product.ndjson (timeout, 120.1s) 
+- good/perf/ite-taken-branch.ndjson (reject, 112.07s) FAIL  ite_taken_branch_1: resource limit exceeded (fuel)
+- good/perf/magma-list-deep-n36.ndjson (reject, 19.15s) FAIL  countermodel: resource limit exceeded (fuel)
+- good/perf/magma-list-pair-n21.ndjson (reject, 21.02s) FAIL  countermodel: resource limit exceeded (fuel)
+- good/perf/proj-lazy-struct.ndjson (reject, 20.2s) FAIL  proj_lazy_struct: resource limit exceeded (fuel)
+- good/perf/short-circuit-and.ndjson (reject, 50.02s) FAIL  short_circuit_and_1: resource limit exceeded (fuel)
+- good/tutorial/006_betaReduction.ndjson (reject, 0.0s) FAIL  betaReduction: value has type Sort imax(S(0),0), expected ((constType Sort 0) (a._@._internal._hyg.0 : S
+- good/tutorial/007_betaReduction2.ndjson (reject, 0.0s) FAIL  betaReduction2: value has type (a._@._internal._hyg.0 : Sort 0) -> Sort 0, expected (p : Sort 0) -> ((co
+- good/tutorial/055_reduceCtorParam.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParam: invalid (nested?) occurrence of the inductive type in ((constType (reduceCtor
+- good/tutorial/119_reduceCtorParamRefl.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParamRefl: invalid (nested?) occurrence of the inductive type in ((constType (reduce
+- good/tutorial/120_reduceCtorParamRefl2.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParamRefl2: invalid (nested?) occurrence of the inductive type in ((constType (reduc
