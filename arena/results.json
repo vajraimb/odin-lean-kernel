@@ -4,7 +4,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 34.78,
+  "t": 44.04,
   "fail": "FAIL  natShiftRightHuge: resource limit exceeded (fuel)"
  },
  {
@@ -28,7 +28,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.8,
+  "t": 0.76,
   "fail": ""
  },
  {
@@ -44,7 +44,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -76,7 +76,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 60.01,
+  "t": 60.07,
   "fail": ""
  },
  {
@@ -84,7 +84,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.02,
+  "t": 0.4,
   "fail": ""
  },
  {
@@ -92,7 +92,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 18.97,
+  "t": 59.66,
   "fail": ""
  },
  {
@@ -100,7 +100,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.05,
+  "t": 0.08,
   "fail": ""
  },
  {
@@ -132,7 +132,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -140,7 +140,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.37,
+  "t": 0.38,
   "fail": ""
  },
  {
@@ -148,7 +148,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 60.06,
+  "t": 60.07,
   "fail": ""
  },
  {
@@ -156,7 +156,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 8.44,
+  "t": 8.98,
   "fail": ""
  },
  {
@@ -196,7 +196,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 10.34,
+  "t": 9.24,
   "fail": ""
  },
  {
@@ -204,7 +204,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 11.19,
+  "t": 10.85,
   "fail": ""
  },
  {
@@ -212,7 +212,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 2.28,
+  "t": 1.47,
   "fail": ""
  },
  {
@@ -220,7 +220,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 15.35,
+  "t": 13.56,
   "fail": ""
  },
  {
@@ -228,7 +228,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 23.14,
+  "t": 20.05,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -236,7 +236,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 24.0,
+  "t": 21.82,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -244,7 +244,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 19.55,
+  "t": 19.35,
   "fail": ""
  },
  {
@@ -276,7 +276,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 19.64,
+  "t": 19.8,
   "fail": "FAIL  proj_lazy_struct: resource limit exceeded (fuel)"
  },
  {
@@ -292,7 +292,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.88,
+  "t": 0.84,
   "fail": ""
  },
  {
@@ -308,7 +308,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.04,
+  "t": 0.05,
   "fail": ""
  },
  {
@@ -316,7 +316,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -324,7 +324,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 49.06,
+  "t": 47.55,
   "fail": "FAIL  short_circuit_and_1: resource limit exceeded (fuel)"
  },
  {
@@ -332,7 +332,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 47.49,
+  "t": 48.22,
   "fail": ""
  },
  {
@@ -340,7 +340,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 44.85,
+  "t": 47.8,
   "fail": ""
  },
  {
@@ -364,7 +364,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -386,18 +386,18 @@
  {
   "name": "good/tutorial/006_betaReduction.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
+  "rc": 0,
+  "got": "accept",
   "t": 0.0,
-  "fail": "FAIL  betaReduction: value has type Sort imax(S(0),0), expected ((constType Sort 0) (a._@._internal._hyg.0 : Sort 0) -> Sort 0)"
+  "fail": ""
  },
  {
   "name": "good/tutorial/007_betaReduction2.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
+  "rc": 0,
+  "got": "accept",
   "t": 0.0,
-  "fail": "FAIL  betaReduction2: value has type (a._@._internal._hyg.0 : Sort 0) -> Sort 0, expected (p : Sort 0) -> ((constType Sort 0) (a._@._internal._hyg.0 : Sort 0) -"
+  "fail": ""
  },
  {
   "name": "good/tutorial/008_forallSortWhnf.ndjson",
@@ -572,7 +572,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -620,7 +620,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -658,10 +658,10 @@
  {
   "name": "good/tutorial/055_reduceCtorParam.mk.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
+  "rc": 0,
+  "got": "accept",
   "t": 0.0,
-  "fail": "FAIL  inductive reduceCtorParam: invalid (nested?) occurrence of the inductive type in ((constType (reduceCtorParam \u03b1)) (reduceCtorParam \u03b1))"
+  "fail": ""
  },
  {
   "name": "good/tutorial/058_predWithTypeField.ndjson",
@@ -700,7 +700,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -964,7 +964,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1004,24 +1004,24 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
   "name": "good/tutorial/119_reduceCtorParamRefl.mk.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
+  "rc": 0,
+  "got": "accept",
   "t": 0.0,
-  "fail": "FAIL  inductive reduceCtorParamRefl: invalid (nested?) occurrence of the inductive type in ((constType (reduceCtorParamRefl \u03b1)) (reduceCtorParamRefl \u03b1))"
+  "fail": ""
  },
  {
   "name": "good/tutorial/120_reduceCtorParamRefl2.mk.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
+  "rc": 0,
+  "got": "accept",
   "t": 0.0,
-  "fail": "FAIL  inductive reduceCtorParamRefl2: invalid (nested?) occurrence of the inductive type in ((constType (reduceCtorParamRefl2 \u03b1)) \u03b1)"
+  "fail": ""
  },
  {
   "name": "good/tutorial/121_rTreeRec.ndjson",
@@ -1052,7 +1052,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1060,7 +1060,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1068,7 +1068,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1268,7 +1268,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.04,
+  "t": 0.05,
   "fail": "FAIL  inductive Native64ResultSortOwner: type expected: ((Native64ResultSortOwner x) h)"
  },
  {
@@ -1300,7 +1300,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.05,
+  "t": 0.04,
   "fail": "FAIL  inductive Native64TwoHashOwner: invalid (nested?) occurrence of the inductive type in (((((((\u2026 \u2026) Native64TwoHashOwner) (Native64TwoHashB.0.2525080234 (\u2026 "
  },
  {
@@ -1308,7 +1308,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.06,
+  "t": 0.04,
   "fail": "FAIL  Issue.proposition: argument type mismatch: Issue.gateWitness : Issue.GateQ, expected Issue.GateP"
  },
  {
@@ -1324,7 +1324,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  inductive J: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive J.j1)"
  },
  {
@@ -1348,7 +1348,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.12,
+  "t": 0.11,
   "fail": "FAIL  strLitUtf8Bad: value has type (((Eq String) \"\u00e9\") \"\u00e9\"), expected (((Eq String) \"\u00e9\") (String.ofList (((List.cons Char) (Char.ofNat ((\u2026 \u2026) (\u2026 \u2026)))) (((List.c"
  },
  {
@@ -1364,7 +1364,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive False: wrong number of recursors"
  },
  {
@@ -1396,7 +1396,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  badFalse: argument type mismatch: True.intro : True, expected False"
  },
  {
@@ -1404,7 +1404,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 22.2,
+  "t": 22.37,
   "fail": "FAIL  ite_taken_branch_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1412,7 +1412,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 1.07,
+  "t": 1.16,
   "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
  },
  {
@@ -1420,7 +1420,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 45.39,
+  "t": 45.23,
   "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
  },
  {
@@ -1428,7 +1428,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.43,
+  "t": 18.4,
   "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
  },
  {
@@ -1452,7 +1452,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.8,
+  "t": 19.79,
   "fail": "FAIL  short_circuit_and_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1460,7 +1460,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 17.96,
+  "t": 18.0,
   "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
  },
  {
@@ -1492,7 +1492,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  nonTypeAxiom: type expected: constType"
  },
  {
@@ -1580,7 +1580,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive inductInIndex: index mentions the inductive type"
  },
  {
@@ -1644,7 +1644,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  projProp2: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {

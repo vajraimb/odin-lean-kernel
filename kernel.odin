@@ -2171,7 +2171,7 @@ main :: proc() {
 			hints, _ := jobj(x, "hints")
 			h := 0
 			#partial switch hv in hints {
-			case json.String: h = hv == "abbrev" ? 1 << 30 : -1
+			case json.String: h = hv == "abbrev" ? 1 << 30 : 0
 			case json.Object: if r, ok2 := hv["regular"]; ok2 { h = jint(r) }
 			}
 			name = jint(nm); d = Decl{kind = .Def, lparams = jints(lp), type = jint(ty), value = jint(vl), height = h}; found = true
