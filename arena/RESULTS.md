@@ -39,3 +39,9 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 - good/tutorial/055_reduceCtorParam.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParam: invalid (nested?) occurrence of the inductive type in ((constType (reduceCtor
 - good/tutorial/119_reduceCtorParamRefl.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParamRefl: invalid (nested?) occurrence of the inductive type in ((constType (reduce
 - good/tutorial/120_reduceCtorParamRefl2.mk.ndjson (reject, 0.0s) FAIL  inductive reduceCtorParamRefl2: invalid (nested?) occurrence of the inductive type in ((constType (reduc
+
+## 更新：修复投影规则与重复定义
+
+- bad: 误放行 14 -> 5，正确拒绝 78 -> 87
+- good: 接受 125，拒绝 10，超时 3（60 秒限制）
+- 仍误放行：large-elim-param, orphan-rec, quot-bad-type, extra-rec, tut06_bad01

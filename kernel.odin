@@ -931,6 +931,9 @@ infer_raw :: proc(e: int) -> (res: int, ok: bool) {
 		sh, sargs := get_app(st)
 		defer delete(sargs)
 		if exprs[sh].kind != .Const do return 0, fail("projection of non-structure")
+		if exprs[sh].a != ex.a do return 0, fail("projection type name does not match the structure")
+		// a structure in Prop may only project proofs (data fields would allow eliminating into Type)
+		prop_struct := is_prop(st)
 		ind, found := env[exprs[sh].a]
 		if !found || ind.kind != .Induct || len(ind.ctors) != 1 || ind.nindices != 0 || len(sargs) != ind.nparams {
 			return 0, fail("projection of non-structure %s", expr_str(ex.c))
@@ -945,10 +948,14 @@ infer_raw :: proc(e: int) -> (res: int, ok: bool) {
 		for j in 0 ..< ex.b {
 			c = whnf(c)
 			if exprs[c].kind != .Pi do return 0, fail("projection index out of range")
+			if prop_struct && exprs[exprs[c].c].lbr > 0 && !is_prop(exprs[c].b) {
+				return 0, fail("invalid projection: a later field depends on a non-proof field of a Prop structure")
+			}
 			c = instantiate(exprs[c].c, mk_proj(ex.a, j, ex.c))
 		}
 		c = whnf(c)
 		if exprs[c].kind != .Pi do return 0, fail("projection index out of range")
+		if prop_struct && !is_prop(exprs[c].b) do return 0, fail("invalid projection: cannot project a non-proof field of a Prop structure")
 		return exprs[c].b, true
 	case .NatLit:
 		n, ok := find_name("Nat")
@@ -1829,6 +1836,17 @@ check_inductive :: proc(x: json.Value) -> (first: int, ok: bool) {
 		append(&block, jint(nm))
 	}
 	first = block[0]
+	{ // no name may be declared twice, neither against the environment nor within this block
+		seen := make(map[int]bool)
+		defer delete(seen)
+		for group in ([]json.Value{types, ctors, recs}) {
+			for item in group.(json.Array) {
+				nm := jint(jget(item, "name"))
+				if nm in env || nm in seen do return first, fail("duplicate declaration %s", names[nm])
+				seen[nm] = true
+			}
+		}
+	}
 	num_nested := 0
 	for t in ta {
 		nm, _ := jobj(t, "name"); ty, _ := jobj(t, "type"); lp, _ := jobj(t, "levelParams")
@@ -2075,6 +2093,11 @@ main :: proc() {
 			nm := jint(jget(x, "name"))
 			kind := jget(x, "kind").(json.String)
 			qk := kind == "type" ? 0 : kind == "ctor" ? 1 : kind == "lift" ? 2 : 3
+			if nm in env {
+				fmt.printf("FAIL  quot %s: duplicate declaration\n", names[nm])
+				n_fail += 1
+				continue
+			}
 			qd := Decl{kind = .Quot, lparams = jints(jget(x, "levelParams")), type = jint(jget(x, "type")), height = -1, qkind = qk}
 			if _, good := ensure_sort(qd.type); good {
 				env[nm] = qd
@@ -2110,10 +2133,12 @@ main :: proc() {
 		}
 		failure = nil
 		decl_start_exprs = len(exprs)
+		dup_decl := name in env
 		fuel = 0; fuel_out = false
 		if len(os.args) > 2 do fmt.eprintfln("checking %s", names[name])
 		trace_on = len(os.args) > 3 && os.args[3] == names[name]
-		ok_decl := check_decl(d)
+		ok_decl := !dup_decl && check_decl(d)
+		if dup_decl { failure = fmt.aprintf("duplicate declaration %s", names[name]) }
 		if fuel_out { ok_decl = false; failure = "resource limit exceeded (fuel)" }
 		if ok_decl {
 			env[name] = d
