@@ -97,3 +97,12 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 - whnf_core 的未命中几乎全是 lambda 头的 beta 红式：n7 每个四元组约 200 次，每次替换生成约 15 个新节点；项里带着 Nat.Lemmas 的 reflects_decide 证明体，每个四元组都不同，无法共享。
 - whnf_core 对 Lam/Pi/Sort/Const/字面量/FVar 直接返回，不再进缓存：n7 5.1 s -> 4.4 s。
 - 结论：n21、n36 的瓶颈是每次 beta 都要实例化大型证明项，需要惰性替换（闭包式求值）或节点回收，缓存调参无法解决。
+
+## 更新：惰性替换（闭包求值，LAZY=1 启用）
+
+- 新增基于闭包的弱头范式机（whnf_core_lazy）：beta、let 和递归子规则展开只往环境里压入 thunk（项 + 环境），不复制；只有最终需要的参数才通过 instantiate_env 代入并回读成项。被丢弃的证明项和未选中的 minor 不再被复制。
+- thunk 与环境存放在草稿数组中，调用返回时截断；进入 exprs 的只有已代入的项，哈希化不变。
+- BVar 在头部位置时先强制并走 whnf_core 缓存，避免丢失共享（否则 shared-subterm 呈指数级）；燃料仍按调用计数，与旧口径一致，否则预算策略会过早中止。
+- 正确性：LAZY=1 下 Arena good 136/138、bad 92/92 拒绝，与默认模式一致。
+- 效果有限：magma-list-pair-n7 新建表达式 7.16M -> 4.5M，耗时 4.7 s -> 3.5 s；但 unfold-before-literal 73 s -> 110 s，deep-n36 9.8 s -> 34 s，故默认仍用急切实现。
+- n21 / n36 仍超限：剩余的表达式主要来自强制 major 与回读时必须复制的含证明的项（WhnfCore 3.5M、Unfold 0.95M）。要彻底解决需要让 Susp（延迟替换）节点成为 Expr 一类，并让 infer / def_eq 都识别它。

@@ -74,6 +74,7 @@ fail :: proc(format: string, args: ..any) -> bool {
 Phase :: enum u8 { Other, AddExpr, Instantiate, Iota, WhnfCore, DefEq, Infer, ReduceNat, Unfold, InstLevels, GetApp, Whnf, Env }
 phase: Phase
 phase_counts: [16]int
+phase_new: [16]int
 foreign import libc "system:c"
 Itimerval :: struct { interval_s, interval_us, value_s, value_us: i64 }
 foreign libc {
@@ -102,8 +103,9 @@ prof_start :: proc() {
 	it := Itimerval{0, 1000, 0, 1000}
 	setitimer(2, &it, nil)   // ITIMER_PROF
 }
+caller_phase: Phase
 @(deferred_in_out = _leave)
-enter :: proc(p: Phase) -> Phase { old := phase; phase = p; return old }
+enter :: proc(p: Phase) -> Phase { old := phase; if p == .AddExpr do caller_phase = old; phase = p; return old }
 _leave :: proc(p: Phase, old: Phase) { phase = old }
 
 
@@ -453,6 +455,7 @@ add_expr :: proc(e: Expr) -> int {
 	e := e
 	h := expr_hash(&e)
 	if id := hc_find(&e, h); id >= 0 do return id
+	phase_new[int(caller_phase)] += 1
 	append(&exprs, e)
 	hc_insert(len(exprs) - 1, h)
 	return len(exprs) - 1
@@ -660,6 +663,7 @@ whnf_core :: proc(e: int) -> int {
 
 wc_n: int
 prof_on: bool
+inf_n: int
 samp_n: int
 hist: map[string]int
 fuel: int
@@ -685,7 +689,195 @@ budget_end :: proc(saved, inner: int) -> bool {
 	}
 	return false
 }
-whnf_core_raw :: proc(e: int) -> int {
+// ---- lazy (closure based) weak-head machine -------------------------------
+// A thunk is a term together with the environment its loose bvars refer to.
+// Closures live in scratch arrays that are truncated when the call returns;
+// only forced (fully substituted) terms ever reach `exprs`.
+Thunk :: struct { t, env, forced: int }
+EnvNode :: struct { th, next, id, n: int }
+thunks: [dynamic]Thunk
+envnodes: [dynamic]EnvNode
+mstack: [dynamic]int
+env_ctr: int
+
+env_cons :: proc(th, next: int) -> int {
+	env_ctr += 1
+	append(&envnodes, EnvNode{th, next, env_ctr, next < 0 ? 1 : envnodes[next].n + 1})
+	return len(envnodes) - 1
+}
+env_get :: proc(env, j: int) -> int {
+	c := env
+	for k := 0; k < j && c >= 0; k += 1 do c = envnodes[c].next
+	return c < 0 ? -1 : envnodes[c].th
+}
+new_thunk :: proc(t, env: int) -> int {
+	append(&thunks, Thunk{t, exprs[t].lbr == 0 ? -1 : env, -1})
+	return len(thunks) - 1
+}
+force_clo :: proc(t, env: int) -> int {
+	if env < 0 || exprs[t].lbr == 0 do return t
+	return instantiate_env(t, env, 0)
+}
+force_thunk :: proc(th: int) -> int {
+	if thunks[th].forced >= 0 do return thunks[th].forced
+	r := force_clo(thunks[th].t, thunks[th].env)
+	thunks[th].forced = r
+	return r
+}
+instantiate_env :: proc(e, env, off: int) -> int {
+	if exprs[e].lbr <= off do return e
+	tok := -(envnodes[env].id + 1)
+	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
+	ex := exprs[e]
+	r: int
+	#partial switch ex.kind {
+	case .BVar:
+		th := env_get(env, ex.a - off)
+		if th >= 0 { r = force_thunk(th) } else { r = mk_bvar(ex.a - envnodes[env].n) }
+	case .App: r = mk_app(instantiate_env(ex.a, env, off), instantiate_env(ex.b, env, off))
+	case .Lam, .Pi: r = mk_binder(ex.kind, ex.a, instantiate_env(ex.b, env, off), instantiate_env(ex.c, env, off + 1))
+	case .Let: r = mk_let(ex.a, instantiate_env(ex.b, env, off), instantiate_env(ex.c, env, off), instantiate_env(ex.d, env, off + 1))
+	case .MData: r = instantiate_env(ex.a, env, off)
+	case .Proj: r = mk_proj(ex.a, ex.b, instantiate_env(ex.c, env, off))
+	case: r = e
+	}
+	lc_put(&lc_inst2, e, tok, off, r)
+	return r
+}
+
+whnf_core_lazy :: proc(e: int) -> int {
+	enter(.WhnfCore)
+	if fuel_out || aborted do return e
+	th_mark, env_mark, st_base := len(thunks), len(envnodes), len(mstack)
+	defer {
+		resize(&thunks, th_mark)
+		resize(&envnodes, env_mark)
+		resize(&mstack, st_base)
+	}
+	t, env := e, -1
+	fuel += 1
+	for {
+		if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
+		if fuel & 0xfff == 0 && len(exprs) - wm_exprs > EXPR_CAP { fuel_out = true }
+		if fuel_out || aborted do return e
+		if env >= 0 && exprs[t].lbr == 0 do env = -1
+		ex := exprs[t]
+		stuck := false
+		#partial switch ex.kind {
+		case .BVar:
+			th := env_get(env, ex.a)
+			if th < 0 { stuck = true } else { t, env = whnf_core(force_thunk(th)), -1 }
+		case .MData: t = ex.a
+		case .Let:
+			th := new_thunk(ex.c, env)
+			env = env_cons(th, env)
+			t = ex.d
+		case .Proj:
+			st := whnf(force_clo(ex.c, env))
+			if exprs[st].kind == .StrLit do st = whnf(str_lit_to_ctor(st))
+			sh, sargs := get_app(st)
+			defer delete(sargs)
+			if exprs[sh].kind != .Const { stuck = true; break }
+			cd, found := env_decl(exprs[sh].a)
+			if !found || cd.kind != .Ctor || cd.nparams + ex.b >= len(sargs) { stuck = true; break }
+			t, env = sargs[cd.nparams + ex.b], -1
+		case .App:
+			append(&mstack, new_thunk(ex.b, env))
+			t = ex.a
+		case .Lam:
+			if len(mstack) == st_base { stuck = true; break }
+			th := pop(&mstack)
+			env = env_cons(th, env)
+			t = ex.c
+		case .Const:
+			d, found := env_decl(ex.a)
+			if !found || len(mstack) == st_base { stuck = true; break }
+			if d.kind == .Quot {
+				n := len(mstack) - st_base
+				fa := make([]int, n)
+				defer delete(fa)
+				for k in 0 ..< n do fa[k] = force_thunk(mstack[len(mstack) - 1 - k])
+				if r, ok := try_quot(t, fa); ok {
+					resize(&mstack, st_base)
+					t, env = r, -1
+				} else do stuck = true
+			} else if d.kind == .Rec {
+				if ok := try_iota_lazy(t, d, st_base, &t, &env); !ok do stuck = true
+			} else do stuck = true
+		case: stuck = true
+		}
+		if stuck {
+			r := force_clo(t, env)
+			for k := len(mstack) - 1; k >= st_base; k -= 1 do r = mk_app(r, force_thunk(mstack[k]))
+			return r
+		}
+	}
+}
+
+env_decl :: proc(n: int) -> (Decl, bool) { return env[n] }
+
+// Lazy iota step: on success replaces the machine state (and the argument stack).
+try_iota_lazy :: proc(rec_const: int, d: Decl, st_base: int, nt, nenv: ^int) -> bool {
+	enter(.Iota)
+	rx := exprs[rec_const]
+	if len(d.lparams) != len(rx.us) do return false
+	nargs := len(mstack) - st_base
+	arg :: proc(k: int) -> int { return mstack[len(mstack) - 1 - k] }
+	major_idx := d.nparams + d.nmotives + d.nminors + d.nindices
+	if nargs <= major_idx do return false
+	major := force_thunk(arg(major_idx))
+	if d.k {
+		saved := failure
+		t, ok1 := infer(major)
+		if ok1 {
+			t = whnf(t)
+			h, hargs := get_app(t)
+			defer delete(hargs)
+			if exprs[h].kind == .Const {
+				if ind, f2 := env[exprs[h].a]; f2 && ind.kind == .Induct && len(ind.ctors) == 1 && len(hargs) >= ind.nparams {
+					nm := mk_const(ind.ctors[0], exprs[h].us)
+					for i in 0 ..< ind.nparams do nm = mk_app(nm, hargs[i])
+					t2, ok2 := infer(nm)
+					if ok2 && def_eq(t2, t) do major = nm
+				}
+			}
+		}
+		failure = saved
+	}
+	major = whnf(major)
+	if exprs[major].kind == .NatLit do major = nat_lit_to_ctor(major)
+	if exprs[major].kind == .StrLit do major = whnf(str_lit_to_ctor(major))
+	mh, margs := get_app(major)
+	defer delete(margs)
+	is_ctor := false
+	if exprs[mh].kind == .Const {
+		if cd, f := env[exprs[mh].a]; f && cd.kind == .Ctor do is_ctor = true
+	}
+	if !is_ctor {
+		major = expand_struct(major)
+		delete(margs)
+		mh, margs = get_app(major)
+		if exprs[mh].kind != .Const do return false
+		if cd, f := env[exprs[mh].a]; !f || cd.kind != .Ctor do return false
+	}
+	cd := env[exprs[mh].a]
+	rule: Rule
+	rf := false
+	for r in d.rules do if r.ctor == exprs[mh].a { rule = r; rf = true }
+	if !rf || len(margs) != cd.nparams + rule.nfields do return false
+	// new argument list (first argument first)
+	na := make([dynamic]int, context.temp_allocator)
+	for i in 0 ..< d.nparams + d.nmotives + d.nminors do append(&na, arg(i))
+	for i in len(margs) - rule.nfields ..< len(margs) do append(&na, new_thunk(margs[i], -1))
+	for i in major_idx + 1 ..< nargs do append(&na, arg(i))
+	resize(&mstack, st_base)
+	for k := len(na) - 1; k >= 0; k -= 1 do append(&mstack, na[k])
+	nt^ = inst_expr_levels(rule.rhs, d.lparams, rx.us)
+	nenv^ = -1
+	return true
+}
+
+whnf_core_eager :: proc(e: int) -> int {
 	enter(.WhnfCore)
 	fuel += 1
 	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
@@ -746,6 +938,9 @@ whnf_core_raw :: proc(e: int) -> int {
 		}
 	}
 }
+
+use_lazy: bool
+whnf_core_raw :: proc(e: int) -> int { return use_lazy ? whnf_core_lazy(e) : whnf_core_eager(e) }
 
 // Unfold a definition at the head of e (one step). ok=false if impossible.
 unfold_head :: proc(e: int) -> (res: int, ok: bool) {
@@ -1156,6 +1351,7 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 
 infer_raw :: proc(e: int) -> (res: int, ok: bool) {
 	enter(.Infer)
+	if prof_on { inf_n += 1; if inf_n % 2000000 == 0 { fmt.eprintfln("INF %d exprs %d %v", inf_n, len(exprs), exprs[e].kind) } }
 	if e < 0 || e >= len(exprs) do return 0, fail("reference to undefined expression %d", e)
 	ex := exprs[e]
 	switch ex.kind {
@@ -2014,6 +2210,7 @@ purge :: proc() {
 	if os.get_env("PROF", context.allocator) != "" && len(exprs) - wm_exprs > 1000000 {
 		kc: [32]int
 		for i in wm_exprs..<len(exprs) do kc[int(exprs[i].kind)] += 1
+		for p in Phase do fmt.eprintfln("NEW %v %d", p, phase_new[int(p)])
 		for k in Expr_Kind do fmt.eprintfln("KIND %v %d", k, kc[int(k)])
 		fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
 	hc_truncate(wm_exprs)
@@ -2347,6 +2544,7 @@ main :: proc() {
 
 	n_ok, n_fail, n_skip := 0, 0, 0
 	if os.get_env("PROF", context.allocator) != "" { prof_on = true; prof_start() }
+	use_lazy = os.get_env("LAZY", context.allocator) != ""
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
 	// ids used by the export are never mixed with nodes the kernel creates while checking
 	decl_lines := make([dynamic]string)

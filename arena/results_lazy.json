@@ -1,0 +1,1842 @@
+[
+ {
+  "name": "good/bugs/nat-shift-huge.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.22,
+  "fail": ""
+ },
+ {
+  "name": "good/bugs/str-lit-utf8.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.31,
+  "fail": ""
+ },
+ {
+  "name": "good/corner-cases/proof-param-ok.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/init-prelude.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.89,
+  "fail": ""
+ },
+ {
+  "name": "good/other/level-index-out-of-order.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/other/nat-lit-add.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.02,
+  "fail": ""
+ },
+ {
+  "name": "good/other/nat-lit-ble.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.02,
+  "fail": ""
+ },
+ {
+  "name": "good/other/nat-lit-sub.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.02,
+  "fail": ""
+ },
+ {
+  "name": "good/other/sparse-name-index.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/app-lam.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 26.96,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/args-before-unfold.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.06,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/beta-ladder.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 3.03,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/church-numerals.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.21,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/discarded-argument-match.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.2,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/discarded-argument.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.04,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/folded-constant-first.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.09,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/folded-constant-last.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.08,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/fueled-chain.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.47,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/gf3-matrix-product.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 31.33,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/grind-ring-5.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 3.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/identical-nesting.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/irrelevance-before-evaluation.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/irrelevance-refutes.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/ite-taken-branch.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 3.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/let-fold.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 2.95,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/let-ladder.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 2.95,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/loop-unfolded-once.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.99,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/magma-list-deep-n21.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 3.97,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/magma-list-deep-n36.ndjson",
+  "exp": "good",
+  "rc": 1,
+  "got": "reject",
+  "t": 37.66,
+  "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
+ },
+ {
+  "name": "good/perf/magma-list-pair-n21.ndjson",
+  "exp": "good",
+  "rc": 1,
+  "got": "reject",
+  "t": 17.49,
+  "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
+ },
+ {
+  "name": "good/perf/magma-list-pair-n7.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 3.82,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/proj-app-lazy-delta.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.1,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/proj-applied-struct.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.07,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/proj-cheap-struct.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.05,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/proj-lazy-struct.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.39,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/proj-stuck-struct.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.04,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/prop-struct-projections.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.55,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/repeated-subproblem.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/shared-subterm.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.15,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/shift-cascade.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.06,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/short-circuit-and.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 1.36,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/unfold-before-literal-fallback.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 113.0,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/unfold-before-literal.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 108.49,
+  "fail": ""
+ },
+ {
+  "name": "good/perf/unroll-versus-evaluate.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/001_basicDef.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/003_arrowType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/004_dependentType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/005_constType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/006_betaReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/007_betaReduction2.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/008_forallSortWhnf.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/013_thmProof.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/015_levelComp1.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/016_levelComp2.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/017_levelComp3.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/018_levelParams.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/020_levelComp4.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/021_levelComp5.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/022_imax1.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/023_imax2.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/024_levelMaxComm.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/025_levelMaxAssoc.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/026_levelMaxIdem.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/027_levelMaxAbsorb.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/028_inferVar.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/029_defEqLambda.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/030_peano1.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/031_peano2.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/032_peano3.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/033_letType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/034_letTypeDep.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/035_letRed.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/036_empty.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/037_boolType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/038_twoBool.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/039_andType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/040_prodType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/041_pprodType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/042_pUnitType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/043_eqType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/044_natDef.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/045_rbTreeDef.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.04,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/055_reduceCtorParam.mk.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/058_predWithTypeField.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/059_typeWithTypeField.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/060_typeWithTypeFieldPoly.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/062_emptyRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/063_boolRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/064_twoBoolRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/065_andRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/066_prodRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/067_pprodRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/068_punitRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/069_eqRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/070_nRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/071_rbTreeRef.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.03,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/072_boolPropRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/074_existsRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/075_typeSingletonRecReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/076_sortElimPropRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/077_sortElimProp2Rec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/078_boolRecEqns.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/079_prodRecEqns.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/080_nRecReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/081_listRecReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/082_RBTree.id_spec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.06,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/083_And.right.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/084_Prod.snd.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/085_PProd.snd.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/086_PSigma.snd.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/089_projProp1.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/091_projProp3.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/095_projDataIndexRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/098_projRed.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/099_ruleK.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/102_aNatLit.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/103_natLitEq.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/104_proofIrrelevance.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/106_proofIrrelevanceWhnf.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/107_proofIrrelevanceUnderBinder.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/108_unitEta1.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/109_unitEta2.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/110_unitEta3.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/112_structEta.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/114_funEta.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/115_funEtaDep.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/119_reduceCtorParamRefl.mk.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/120_reduceCtorParamRefl2.mk.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/121_rTreeRec.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/122_rtreeRecReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/123_accRecType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/124_accRecReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.02,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/126_quotMkType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/127_quotIndType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/128_quotLiftType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/129_quotSoundType.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.0,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/130_quotLiftReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "good/tutorial/131_quotIndReduction.ndjson",
+  "exp": "good",
+  "rc": 0,
+  "got": "accept",
+  "t": 0.01,
+  "fail": ""
+ },
+ {
+  "name": "bad/bugs/closure-level-subst.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  lower: value has type Family, expected Family"
+ },
+ {
+  "name": "bad/bugs/constlevels.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  _test: let value type mismatch"
+ },
+ {
+  "name": "bad/bugs/ctor-num-fields.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  inductive _private.Test.0.S: constructor field count mismatch"
+ },
+ {
+  "name": "bad/bugs/eta-ctor-alias.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  etaCtorAlias: value has type (a : BoxFn) -> (((Eq BoxFn) #0) #0), expected (f : BoxFn) -> (((Eq BoxFn) #0) Box.mk)"
+ },
+ {
+  "name": "bad/bugs/k-rec-conv.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  bad: value has type (((Eq T) t1) t1), expected (((Eq T) t1) t2)"
+ },
+ {
+  "name": "bad/bugs/large-elim-param.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive MyBool: recursor of MyBool: large elimination is not allowed"
+ },
+ {
+  "name": "bad/bugs/large-elim-prop-bool.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  inductive NewBool: recursor of NewBool: large elimination is not allowed"
+ },
+ {
+  "name": "bad/bugs/level-imax-leq.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive False: recursor False.rec has wrong K flag"
+ },
+ {
+  "name": "bad/bugs/level-imax-normalization.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  down: value has type (x : Sort S(imax(0,v))) -> Sort S(imax(0,v)), expected (x : Sort S(imax(0,v))) -> Sort imax(0,v)"
+ },
+ {
+  "name": "bad/bugs/loose-bvar-value.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  f: loose bound variable"
+ },
+ {
+  "name": "bad/bugs/nat-rec-k-lie.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive Nat: recursor Nat.rec has wrong K flag"
+ },
+ {
+  "name": "bad/bugs/nat-rec-rules.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive False: recursor False.rec has wrong K flag"
+ },
+ {
+  "name": "bad/bugs/nested-name-capture.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  inductive Shadow: unknown constant _nested.Cov_1.rec"
+ },
+ {
+  "name": "bad/bugs/nested-rec-rule-nfields.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  inductive T: bad recursor rule"
+ },
+ {
+  "name": "bad/bugs/nested-unused-param.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.04,
+  "fail": "FAIL  inductive E: projection type name does not match the structure"
+ },
+ {
+  "name": "bad/bugs/open-term-cache-context.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  openDagContextLeakFalse: argument type mismatch: y : (P : Sort 0) -> (p : #0) -> #1, expected (P : Sort 0) -> #0"
+ },
+ {
+  "name": "bad/bugs/orphan-rec.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive False: wrong number of recursors"
+ },
+ {
+  "name": "bad/bugs/pi-closure-context.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  bad: value has type ( : TrueTy) -> Sort 0, expected ( : TrueTy) -> FalseTy"
+ },
+ {
+  "name": "bad/bugs/proj-non-structure.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  bad: projection of non-structure (Bad.mk2 True.intro)"
+ },
+ {
+  "name": "bad/bugs/proj-of-imax-prop.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  imaxProjBool: invalid projection: cannot project a non-proof field of a Prop structure"
+ },
+ {
+  "name": "bad/bugs/proj-of-stuck-prop.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.17,
+  "fail": "FAIL  inductive Native64ResultSortOwner: type expected: ((Native64ResultSortOwner x) h)"
+ },
+ {
+  "name": "bad/bugs/proj-of-subst-prop.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.17,
+  "fail": "FAIL  PR14806Subst.proposition: argument type mismatch: PR14806Subst.witness : PR14806Subst.Q, expected PR14806Subst.P"
+ },
+ {
+  "name": "bad/bugs/quot-bad-type.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  quot Quot: Quot constant has the wrong type"
+ },
+ {
+  "name": "bad/bugs/rec-k-lie.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive MyBool: recursor MyBool.rec has wrong K flag"
+ },
+ {
+  "name": "bad/bugs/rec-missing-ih.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.18,
+  "fail": "FAIL  inductive Native64TwoHashOwner: invalid (nested?) occurrence of the inductive type in (((((((\u2026 \u2026) Native64TwoHashOwner) (Native64TwoHashB.0.2525080234 (\u2026 "
+ },
+ {
+  "name": "bad/bugs/rec-of-subst-prop.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.18,
+  "fail": "FAIL  Issue.proposition: argument type mismatch: Issue.gateWitness : Issue.GateQ, expected Issue.GateP"
+ },
+ {
+  "name": "bad/bugs/rec-rule-proof-irrel-nested.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  inductive N: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive_2 ((((And.intro N) N) left) right))"
+ },
+ {
+  "name": "bad/bugs/rec-rule-proof-irrel.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  inductive J: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive J.j1)"
+ },
+ {
+  "name": "bad/bugs/rec-rule-wrong-arg.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  inductive W: recursor W.rec: rule for W.mk differs from the derived rule"
+ },
+ {
+  "name": "bad/bugs/rec-type-proof-irrel.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  inductive Q: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (Box Bool.false)"
+ },
+ {
+  "name": "bad/bugs/str-lit-utf8-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.36,
+  "fail": "FAIL  strLitUtf8Bad: value has type (((Eq String) \"\u00e9\") \"\u00e9\"), expected (((Eq String) \"\u00e9\") (String.ofList (((List.cons Char) (Char.ofNat ((\u2026 \u2026) (\u2026 \u2026)))) (((List.c"
+ },
+ {
+  "name": "bad/bugs/unit-rec-rule.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive PUnit: recursor PUnit.rec: rule for PUnit.unit differs from the derived rule"
+ },
+ {
+  "name": "bad/other/extra-rec.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive False: wrong number of recursors"
+ },
+ {
+  "name": "bad/other/inductive-undeclared-universe.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive U: undeclared universe level parameter"
+ },
+ {
+  "name": "bad/other/nat-lit-add-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  natAddLitBad: value has type (((Eq Nat) ((Nat.add (((\u2026 \u2026) 123456789) (instOfNatNat 123456789))) (((OfNat.ofNat Nat) 987654321) (instOfNatNat 987654321))))"
+ },
+ {
+  "name": "bad/other/orphan-ctor.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive False: constructor of unknown inductive"
+ },
+ {
+  "name": "bad/other/proj-of-prop.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  badFalse: argument type mismatch: True.intro : True, expected False"
+ },
+ {
+  "name": "bad/perf/ite-taken-branch-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 11.52,
+  "fail": "FAIL  ite_taken_branch_bad: value has type (((Eq (Array Nat)) piA) piA), expected (((Eq (Array Nat)) (((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) Bool.true)) piA) tA)) piA)"
+ },
+ {
+  "name": "bad/perf/loop-unfolded-once-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 1.27,
+  "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
+ },
+ {
+  "name": "bad/perf/proj-applied-struct-arg-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 19.63,
+  "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
+ },
+ {
+  "name": "bad/perf/proj-applied-struct-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 7.81,
+  "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
+ },
+ {
+  "name": "bad/perf/refute-cheap-first.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.02,
+  "fail": "FAIL  kernel_refute_cheap_first: value has type (((Eq ((Prod Bool) N)) ((((Prod.mk Bool) N) Bool.false) (count (N.S (N.S (\u2026 \u2026)))))) ((((Prod.mk Bool) N) Bool.fa"
+ },
+ {
+  "name": "bad/perf/refute-cheap-last.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.06,
+  "fail": "FAIL  kernel_refute_cheap_last: value has type (((Eq ((Prod N) Bool)) ((((Prod.mk N) Bool) (count (N.S (\u2026 \u2026)))) Bool.false)) ((((Prod.mk N) Bool) (count (N.S (N"
+ },
+ {
+  "name": "bad/perf/short-circuit-and-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 8.48,
+  "fail": "FAIL  short_circuit_and_bad: value has type (p : Nat) -> (q : Nat) -> (((Eq Bool) ((Bool.and Bool.true) ((\u2026 \u2026) #0))) ((Bool.and Bool.true) ((Nat.beq #1) #0))), "
+ },
+ {
+  "name": "bad/perf/unfold-before-literal-bad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 40.39,
+  "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
+ },
+ {
+  "name": "bad/tutorial/002_badDef.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  badDef: value has type Sort S(S(0)), expected Sort 0"
+ },
+ {
+  "name": "bad/tutorial/009_forallSortBad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  forallSortBad: type expected: x"
+ },
+ {
+  "name": "bad/tutorial/010_nonTypeType.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  nonTypeType: type expected: constType"
+ },
+ {
+  "name": "bad/tutorial/011_nonTypeAxiom.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  nonTypeAxiom: type expected: constType"
+ },
+ {
+  "name": "bad/tutorial/012_nonPropThm.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  nonPropThm: theorem type is not a Prop (Sort 0 : Sort S(0))"
+ },
+ {
+  "name": "bad/tutorial/014_selfProof.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  selfProof: unknown constant selfProof"
+ },
+ {
+  "name": "bad/tutorial/019_tut06_bad01.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  tut06_bad01: duplicate universe parameter"
+ },
+ {
+  "name": "bad/tutorial/046_inductBadNonSort.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductBadNonSort: wrong number of recursors"
+ },
+ {
+  "name": "bad/tutorial/047_inductBadNonSort2.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductBadNonSort2: wrong number of recursors"
+ },
+ {
+  "name": "bad/tutorial/048_inductLevelParam.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductLevelParam: duplicate universe parameter"
+ },
+ {
+  "name": "bad/tutorial/049_inductTooFewParams.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductTooFewParams: wrong number of recursors"
+ },
+ {
+  "name": "bad/tutorial/050_inductWrongCtorParams.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductWrongCtorParams: constructor result parameters differ from the declared parameters"
+ },
+ {
+  "name": "bad/tutorial/051_inductWrongCtorResParams.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductWrongCtorResParams: constructor result parameters differ from the declared parameters"
+ },
+ {
+  "name": "bad/tutorial/052_inductWrongCtorResLevel.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductWrongCtorResLevel: recursor of inductWrongCtorResLevel: expected large elimination"
+ },
+ {
+  "name": "bad/tutorial/053_inductInIndex.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive inductInIndex: index mentions the inductive type"
+ },
+ {
+  "name": "bad/tutorial/054_indNeg.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive indNeg: non-positive occurrence of the inductive type in (x : indNeg) -> indNeg"
+ },
+ {
+  "name": "bad/tutorial/056_reduceCtorType.mk.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive reduceCtorType: recursor of reduceCtorType: expected large elimination"
+ },
+ {
+  "name": "bad/tutorial/057_indNegReducible.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive indNegReducible: non-positive occurrence of the inductive type in (x : ((constType aType) indNegReducible)) -> indNegReducible"
+ },
+ {
+  "name": "bad/tutorial/061_typeWithTooHighTypeField.mk.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive typeWithTooHighTypeField: universe level of constructor field x is too large (S(S(0)) vs S(0))"
+ },
+ {
+  "name": "bad/tutorial/073_BogusRecursor.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive BogusRecursor: recursor of BogusRecursor: expected large elimination"
+ },
+ {
+  "name": "bad/tutorial/087_projOutOfRange.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projOutOfRange: projection index out of range"
+ },
+ {
+  "name": "bad/tutorial/088_projNotStruct.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  projNotStruct: projection of non-structure x"
+ },
+ {
+  "name": "bad/tutorial/090_projProp2.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projProp2: invalid projection: cannot project a non-proof field of a Prop structure"
+ },
+ {
+  "name": "bad/tutorial/092_projProp4.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projProp4: invalid projection: cannot project a non-proof field of a Prop structure"
+ },
+ {
+  "name": "bad/tutorial/093_projProp5.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projProp5: invalid projection: cannot project a non-proof field of a Prop structure"
+ },
+ {
+  "name": "bad/tutorial/094_projProp6.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projProp6: invalid projection: a later field depends on a non-proof field of a Prop structure"
+ },
+ {
+  "name": "bad/tutorial/096_projIndexData.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projIndexData: projection type name does not match the structure"
+ },
+ {
+  "name": "bad/tutorial/097_projIndexData2.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  projIndexData2: projection type name does not match the structure"
+ },
+ {
+  "name": "bad/tutorial/100_ruleKbad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  ruleKbad: value has type (x._@.Tutorial.3161876795._hygCtx._hyg.27 : (((Eq Bool) Bool.true) Bool.false)) -> (a : Bool) -> (((Eq Bool) #0) #0), expected (h"
+ },
+ {
+  "name": "bad/tutorial/101_ruleKAcc.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  ruleKAcc: value has type (\u03b1 : Sort u) -> (p : (a._@._internal._hyg.0 : #0) -> (a._@._internal._hyg.0 : #1) -> Sort 0) -> (x : #1) -> (h : (((\u2026 \u2026) #1) #0))"
+ },
+ {
+  "name": "bad/tutorial/105_proofIrrelevanceBad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  proofIrrelevanceBad: value has type (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> (((Eq #2) #1) #1), expected (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> "
+ },
+ {
+  "name": "bad/tutorial/111_indexedUnitEta.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  indexedUnitEta: value has type (x : (IndexedUnit Bool.true)) -> (y : (IndexedUnit Bool.true)) -> (((Eq (IndexedUnit Bool.true)) #1) #1), expected (x : (In"
+ },
+ {
+  "name": "bad/tutorial/113_indexedStructEta.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  indexedStructEta: value has type (a : (IndexedSingleton Bool.true)) -> (((Eq (IndexedSingleton Bool.true)) #0) #0), expected (x : (IndexedSingleton Bool.t"
+ },
+ {
+  "name": "bad/tutorial/116_funEtaBad.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  funEtaBad: value has type (x._@.Tutorial.4249243883._hygCtx._hyg.28 : Sort S(0)) -> (x._@.Tutorial.4249243883._hygCtx._hyg.30 : Sort S(0)) -> (x._@.Tutori"
+ },
+ {
+  "name": "bad/tutorial/117_reflOccLeft.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive reflOccLeft: non-positive occurrence of the inductive type in (x : reflOccLeft) -> Nat"
+ },
+ {
+  "name": "bad/tutorial/118_reflOccInIndex.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive reflOccInIndex: argument type mismatch: x : Nat, expected Sort S(0)"
+ },
+ {
+  "name": "bad/tutorial/125_accRecNoEta.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.01,
+  "fail": "FAIL  accRecNoEta: value has type (\u03b1 : Sort S(0)) -> (r : (a._@._internal._hyg.0 : #0) -> (a._@._internal._hyg.0 : #1) -> Sort 0) -> (a : #1) -> (h : (((\u2026 \u2026) #1"
+ },
+ {
+  "name": "bad/tutorial/132_dup_defs.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  dup_defs: duplicate declaration dup_defs"
+ },
+ {
+  "name": "bad/tutorial/133_dup_ind_def.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive dup_ind_def: duplicate declaration dup_ind_def"
+ },
+ {
+  "name": "bad/tutorial/134_dup_ctor_def.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive dup_ctor_def: duplicate declaration dup_ctor_def.mk"
+ },
+ {
+  "name": "bad/tutorial/135_dup_rec_def.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive dup_rec_def: duplicate declaration dup_rec_def.rec"
+ },
+ {
+  "name": "bad/tutorial/136_misnamed_rec_user.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive misnamed_rec: recursor misnamed_rec.rec missing"
+ },
+ {
+  "name": "bad/tutorial/137_dup_rec_def2.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive dup_rec_def2: recursor dup_rec_def2.rec missing"
+ },
+ {
+  "name": "bad/tutorial/138_dup_ctor_rec.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive dup_ctor_rec: duplicate declaration dup_ctor_rec.rec"
+ },
+ {
+  "name": "bad/tutorial/139_DupConCon.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  inductive DupConCon: duplicate declaration dup_ind_con_con.mk"
+ },
+ {
+  "name": "bad/tutorial/140_falseFromUnsafe.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  unsafeLoop: unknown constant unsafeLoop"
+ },
+ {
+  "name": "bad/tutorial/141_falseFromPartial.ndjson",
+  "exp": "bad",
+  "rc": 1,
+  "got": "reject",
+  "t": 0.0,
+  "fail": "FAIL  partialLoop: unknown constant partialLoop"
+ }
+]
