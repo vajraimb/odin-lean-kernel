@@ -112,7 +112,7 @@ _leave :: proc(p: Phase, old: Phase) { phase = old }
 LC_BITS :: 21
 Ent :: struct { a, b, c, r, gen: int }
 cache_gen: int = 1
-lc_inst, lc_abs, lc_lvl, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
+lc_inst2, lc_inst, lc_abs, lc_lvl, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
 
 lc_slot :: proc(t: ^[]Ent, a, b, c: int) -> ^Ent {
 	if t^ == nil do t^ = make([]Ent, 1 << LC_BITS)
@@ -122,7 +122,7 @@ lc_slot :: proc(t: ^[]Ent, a, b, c: int) -> ^Ent {
 }
 lc_get :: proc(t: ^[]Ent, a, b, c: int) -> (int, bool) {
 	e := lc_slot(t, a, b, c)
-	if e.gen == cache_gen && e.a == a && e.b == b && e.c == c do return e.r, true
+	if e.gen == cache_gen && e.a == a && e.b == b && e.c == c { return e.r, true }
 	return 0, false
 }
 lc_put :: proc(t: ^[]Ent, a, b, c, r: int) {
@@ -523,6 +523,27 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 	return e
 }
 
+// simultaneous instantiation of the k outermost loose bvars (bvar j -> args[k-1-j]); args must be closed
+instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
+	if exprs[e].lbr <= off do return e
+	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
+	ex := exprs[e]
+	r: int
+	#partial switch ex.kind {
+	case .BVar:
+		j := ex.a - off
+		if j < len(args) { r = args[len(args) - 1 - j] } else { r = mk_bvar(ex.a - len(args)) }
+	case .App: r = mk_app(instantiate_n(ex.a, args, tok, off), instantiate_n(ex.b, args, tok, off))
+	case .Lam, .Pi: r = mk_binder(ex.kind, ex.a, instantiate_n(ex.b, args, tok, off), instantiate_n(ex.c, args, tok, off + 1))
+	case .Let: r = mk_let(ex.a, instantiate_n(ex.b, args, tok, off), instantiate_n(ex.c, args, tok, off), instantiate_n(ex.d, args, tok, off + 1))
+	case .MData: r = instantiate_n(ex.a, args, tok, off)
+	case .Proj: r = mk_proj(ex.a, ex.b, instantiate_n(ex.c, args, tok, off))
+	case: r = e
+	}
+	lc_put(&lc_inst2, e, tok, off, r)
+	return r
+}
+
 // Replace fvar `fv` by bvar(off).
 
 abstract_fvar :: proc(e: int, fv: int, off: int = 0) -> int {
@@ -637,6 +658,7 @@ whnf_core :: proc(e: int) -> int {
 wc_n: int
 fuel: int
 fuel_out: bool
+EXPR_CAP :: 20_000_000
 FUEL_LIMIT :: 30_000_000
 BUDGET0 :: 20_000
 eff_limit: int = FUEL_LIMIT // current fuel cap; below FUEL_LIMIT while a budgeted strategy runs
@@ -661,7 +683,7 @@ whnf_core_raw :: proc(e: int) -> int {
 	enter(.WhnfCore)
 	fuel += 1
 	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
-	if fuel & 0xfff == 0 && len(exprs) - wm_exprs > 12_000_000 { fuel_out = true }
+	if fuel & 0xfff == 0 && len(exprs) - wm_exprs > EXPR_CAP { fuel_out = true }
 	if fuel_out || aborted do return e
 	if trace_on { wc_n += 1; if wc_n % 100000 == 0 { fmt.eprintfln("wc %d %s", wc_n, expr_str(e, 6)) } }
 	cur := e
@@ -687,8 +709,14 @@ whnf_core_raw :: proc(e: int) -> int {
 				body := h
 				i := 0
 				for i < len(args) && exprs[body].kind == .Lam {
-					body = instantiate(exprs[body].c, args[i])
+					body = exprs[body].c
 					i += 1
+				}
+				if i == 1 { body = instantiate(body, args[0]) }
+				else {
+					tok := mk_sort(0)
+					for j in 0 ..< i do tok = mk_app(tok, args[j])
+					body = instantiate_n(body, args[:i], tok)
 				}
 				for j in i ..< len(args) do body = mk_app(body, args[j])
 				cur = body
@@ -1977,7 +2005,11 @@ wm_exprs, wm_levels, wm_fv: int
 // Drop everything the kernel created while checking declarations (ids above the watermark set
 // after loading the export), together with all caches that may refer to it.
 purge :: proc() {
-	if os.get_env("PROF", context.allocator) != "" && len(exprs) - wm_exprs > 1000000 { fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
+	if os.get_env("PROF", context.allocator) != "" && len(exprs) - wm_exprs > 1000000 {
+		kc: [32]int
+		for i in wm_exprs..<len(exprs) do kc[int(exprs[i].kind)] += 1
+		for k in Expr_Kind do fmt.eprintfln("KIND %v %d", k, kc[int(k)])
+		fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
 	hc_truncate(wm_exprs)
 	resize(&exprs, wm_exprs)
 	for i in wm_levels ..< len(levels) do delete_key(&level_hc, levels[i])

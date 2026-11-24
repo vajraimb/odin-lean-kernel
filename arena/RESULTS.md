@@ -81,3 +81,12 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 | Arena bad | 92/92 拒绝 | 92/92 拒绝 |
 
 仍失败：magma-list-deep-n36、magma-list-pair-n21（资源上限）。
+
+## 更新：同时实例化（减少表达式创建）
+
+- beta 归约与递归子规则展开时，一次性替换全部绑定变量（instantiate_n），不再逐个参数生成整份中间副本。
+- magma-list-pair-n7 新建表达式 11.35M -> 7.16M（约 -37%），耗时 6.8 s -> 5.1 s。
+- 表达式数量上限 12M -> 20M（8 GB 沙箱内更高会被 OOM 杀掉）。
+- 完整 Init：58530 通过、16 拒绝（原 58522/24），151 s，3.5 GB。
+- Arena：good 136/138，bad 92/92 拒绝，无回归。
+- magma-list-pair-n21 / deep-n36 仍超限：n7 约每个四元组 3000 个表达式，n21 估计需要数亿个节点，需要节点回收或更好的缓存命中才能解决。
