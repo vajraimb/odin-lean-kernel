@@ -27,10 +27,10 @@ import "core:time"
 Level_Kind :: enum { Zero, Succ, Max, IMax, Param }
 Level :: struct { kind: Level_Kind, a, b: int } // Param: a = name id
 
-Expr_Kind :: enum u8 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
+Expr_Kind :: enum u32 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
 Expr :: struct {
+	hasfv:      bool,
 	kind:       Expr_Kind,
-	hasfv:      bool,  // contains a free variable (set in add_expr; not part of identity)
 	a, b, c, d: int,   // meaning depends on kind (see mk_* below)
 	lbr:        int,   // loose bvar range
 	us:         []int, // Const: level ids
