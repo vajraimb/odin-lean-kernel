@@ -4,7 +4,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.31,
+  "t": 0.29,
   "fail": ""
  },
  {
@@ -12,7 +12,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.37,
+  "t": 0.34,
   "fail": ""
  },
  {
@@ -20,7 +20,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -28,7 +28,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.34,
+  "t": 1.07,
   "fail": ""
  },
  {
@@ -44,7 +44,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -52,7 +52,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -60,7 +60,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -68,7 +68,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -76,7 +76,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 27.18,
+  "t": 29.89,
   "fail": ""
  },
  {
@@ -84,7 +84,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.08,
+  "t": 0.07,
   "fail": ""
  },
  {
@@ -92,7 +92,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 6.19,
+  "t": 5.85,
   "fail": ""
  },
  {
@@ -108,7 +108,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.22,
+  "t": 0.23,
   "fail": ""
  },
  {
@@ -140,7 +140,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.56,
+  "t": 0.6,
   "fail": ""
  },
  {
@@ -148,7 +148,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 32.2,
+  "t": 30.99,
   "fail": ""
  },
  {
@@ -156,7 +156,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 4.55,
+  "t": 4.16,
   "fail": ""
  },
  {
@@ -188,7 +188,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 3.0,
+  "t": 3.45,
   "fail": ""
  },
  {
@@ -196,7 +196,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 3.9,
+  "t": 4.45,
   "fail": ""
  },
  {
@@ -204,7 +204,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 2.62,
+  "t": 3.2,
   "fail": ""
  },
  {
@@ -212,7 +212,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.14,
+  "t": 1.32,
   "fail": ""
  },
  {
@@ -220,31 +220,31 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 7.04,
+  "t": 6.65,
   "fail": ""
  },
  {
   "name": "good/perf/magma-list-deep-n36.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 26.38,
-  "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
+  "rc": 0,
+  "got": "accept",
+  "t": 186.96,
+  "fail": ""
  },
  {
   "name": "good/perf/magma-list-pair-n21.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 15.94,
-  "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
+  "rc": 0,
+  "got": "accept",
+  "t": 38.1,
+  "fail": ""
  },
  {
   "name": "good/perf/magma-list-pair-n7.ndjson",
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 5.14,
+  "t": 4.56,
   "fail": ""
  },
  {
@@ -252,7 +252,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.1,
+  "t": 0.09,
   "fail": ""
  },
  {
@@ -260,7 +260,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.09,
+  "t": 0.08,
   "fail": ""
  },
  {
@@ -268,7 +268,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.06,
+  "t": 0.05,
   "fail": ""
  },
  {
@@ -276,7 +276,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.3,
+  "t": 0.37,
   "fail": ""
  },
  {
@@ -292,7 +292,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.63,
+  "t": 0.69,
   "fail": ""
  },
  {
@@ -308,7 +308,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.16,
+  "t": 0.21,
   "fail": ""
  },
  {
@@ -316,7 +316,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.07,
+  "t": 0.06,
   "fail": ""
  },
  {
@@ -324,7 +324,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.47,
+  "t": 1.67,
   "fail": ""
  },
  {
@@ -332,7 +332,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 80.26,
+  "t": 86.79,
   "fail": ""
  },
  {
@@ -340,7 +340,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 79.11,
+  "t": 83.83,
   "fail": ""
  },
  {
@@ -396,7 +396,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -524,7 +524,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -540,7 +540,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -764,7 +764,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.04,
+  "t": 0.03,
   "fail": ""
  },
  {
@@ -836,7 +836,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.02,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -844,7 +844,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.06,
+  "t": 0.1,
   "fail": ""
  },
  {
@@ -860,7 +860,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -868,7 +868,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -900,7 +900,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -916,7 +916,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -932,7 +932,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -996,7 +996,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1004,7 +1004,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1028,7 +1028,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1060,7 +1060,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1084,7 +1084,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1124,7 +1124,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.03,
+  "t": 0.02,
   "fail": "FAIL  inductive _private.Test.0.S: constructor field count mismatch"
  },
  {
@@ -1196,7 +1196,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  inductive False: recursor False.rec has wrong K flag"
  },
  {
@@ -1212,7 +1212,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.03,
+  "t": 0.02,
   "fail": "FAIL  inductive T: bad recursor rule"
  },
  {
@@ -1268,7 +1268,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.2,
+  "t": 0.21,
   "fail": "FAIL  inductive Native64ResultSortOwner: type expected: ((Native64ResultSortOwner x) h)"
  },
  {
@@ -1276,7 +1276,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.19,
+  "t": 0.2,
   "fail": "FAIL  PR14806Subst.proposition: argument type mismatch: PR14806Subst.witness : PR14806Subst.Q, expected PR14806Subst.P"
  },
  {
@@ -1284,7 +1284,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  quot Quot: Quot constant has the wrong type"
  },
  {
@@ -1308,7 +1308,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.19,
+  "t": 0.2,
   "fail": "FAIL  Issue.proposition: argument type mismatch: Issue.gateWitness : Issue.GateQ, expected Issue.GateP"
  },
  {
@@ -1324,7 +1324,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.02,
+  "t": 0.01,
   "fail": "FAIL  inductive J: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive J.j1)"
  },
  {
@@ -1340,7 +1340,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.02,
+  "t": 0.01,
   "fail": "FAIL  inductive Q: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (Box Bool.false)"
  },
  {
@@ -1348,7 +1348,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.37,
+  "t": 0.4,
   "fail": "FAIL  strLitUtf8Bad: value has type (((Eq String) \"\u00e9\") \"\u00e9\"), expected (((Eq String) \"\u00e9\") (String.ofList (((List.cons Char) (Char.ofNat ((\u2026 \u2026) (\u2026 \u2026)))) (((List.c"
  },
  {
@@ -1404,7 +1404,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 17.85,
+  "t": 17.98,
   "fail": "FAIL  ite_taken_branch_bad: value has type (((Eq (Array Nat)) piA) piA), expected (((Eq (Array Nat)) (((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) Bool.true)) piA) tA)) piA)"
  },
  {
@@ -1412,7 +1412,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 1.31,
+  "t": 1.56,
   "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
  },
  {
@@ -1420,7 +1420,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 28.45,
+  "t": 28.5,
   "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
  },
  {
@@ -1428,7 +1428,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 10.65,
+  "t": 11.52,
   "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
  },
  {
@@ -1452,7 +1452,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 14.26,
+  "t": 14.42,
   "fail": "FAIL  short_circuit_and_bad: value has type (p : Nat) -> (q : Nat) -> (((Eq Bool) ((Bool.and Bool.true) ((\u2026 \u2026) #0))) ((Bool.and Bool.true) ((Nat.beq #1) #0))), "
  },
  {
@@ -1460,7 +1460,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 27.5,
+  "t": 31.53,
   "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
  },
  {
@@ -1708,7 +1708,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  proofIrrelevanceBad: value has type (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> (((Eq #2) #1) #1), expected (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> "
  },
  {
@@ -1732,7 +1732,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  funEtaBad: value has type (x._@.Tutorial.4249243883._hygCtx._hyg.28 : Sort S(0)) -> (x._@.Tutorial.4249243883._hygCtx._hyg.30 : Sort S(0)) -> (x._@.Tutori"
  },
  {

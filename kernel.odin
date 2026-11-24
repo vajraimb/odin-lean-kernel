@@ -19,6 +19,7 @@ import "core:math/big"
 import "core:os"
 import "core:slice"
 import "core:strings"
+import "core:strconv"
 import "core:time"
 
 // ---------------------------------------------------------------- data
@@ -89,7 +90,7 @@ op_t: map[string]time.Duration
 prof_handler :: proc "c" (sig: i32) {
 	phase_counts[int(phase)] += 1
 	prof_ticks += 1
-	if prof_ticks == 8000 {
+	if prof_ticks == 100000 {
 		context = runtime.default_context()
 		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
 		fmt.eprintfln("nv %v n %d", t_nv, n_nv)
@@ -112,7 +113,12 @@ _leave :: proc(p: Phase, old: Phase) { phase = old }
 // ---------------------------------------------------------------- lossy caches
 // Direct-mapped caches with a generation stamp: clearing is O(1) and memory stays bounded.
 LC_BITS :: 21
-Ent :: struct { a, b, c, r, gen: int }
+Ent :: struct { a, b, c, r, gen, hi, stamp: int }
+// An entry is valid only while the newest expression it mentions (slot `hi`) is still the
+// one that existed when the entry was written: regions of `exprs` are reclaimed (see gc_region).
+born: [dynamic]u32 // reclamation epoch in which each expression slot was (re)filled
+stamp_ctr: int = 1 // epoch: advanced by every gc_region
+lc_stale: int
 cache_gen: int = 1
 lc_inst2, lc_inst, lc_abs, lc_lvl, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
 
@@ -124,12 +130,15 @@ lc_slot :: proc(t: ^[]Ent, a, b, c: int) -> ^Ent {
 }
 lc_get :: proc(t: ^[]Ent, a, b, c: int) -> (int, bool) {
 	e := lc_slot(t, a, b, c)
-	if e.gen == cache_gen && e.a == a && e.b == b && e.c == c { return e.r, true }
+	if e.gen == cache_gen && e.a == a && e.b == b && e.c == c {
+		if e.hi < len(exprs) && e.hi < len(born) && int(born[e.hi]) <= e.stamp do return e.r, true
+		lc_stale += 1
+	}
 	return 0, false
 }
-lc_put :: proc(t: ^[]Ent, a, b, c, r: int) {
+lc_put :: proc(t: ^[]Ent, a, b, c, r: int, hi: int) {
 	e := lc_slot(t, a, b, c)
-	e^ = Ent{a, b, c, r, cache_gen}
+	e^ = Ent{a, b, c, r, cache_gen, hi, stamp_ctr}
 }
 
 // ---------------------------------------------------------------- levels
@@ -457,6 +466,8 @@ add_expr :: proc(e: Expr) -> int {
 	if id := hc_find(&e, h); id >= 0 do return id
 	phase_new[int(caller_phase)] += 1
 	append(&exprs, e)
+	if len(born) < len(exprs) do resize(&born, len(exprs))
+	born[len(exprs) - 1] = u32(stamp_ctr)
 	hc_insert(len(exprs) - 1, h)
 	return len(exprs) - 1
 }
@@ -476,6 +487,65 @@ hc_truncate :: proc(wm: int) {
 	}
 	if len(hc_next) > wm do resize(&hc_next, wm)
 }
+// ---- region reclamation ------------------------------------------------------
+// `exprs` is used as a stack: everything a whnf / def_eq call allocates above its entry
+// watermark `wm` is unreachable afterwards, except what the result `keep` refers to
+// (callers only hold ids below wm; cache entries are invalidated through `born`).
+// The live part is slid down to `wm` (children always have smaller ids than parents).
+gc_min: int = 4_000_000
+gc_map: [dynamic]int
+gc_stack: [dynamic]int
+gc_runs, gc_freed: int
+gc_region :: proc(wm: int, keep: int) -> int {
+	n := len(exprs) - wm
+	resize(&gc_map, n)
+	for i in 0 ..< n do gc_map[i] = 0
+	clear(&gc_stack)
+	if keep >= wm { gc_map[keep - wm] = 1; append(&gc_stack, keep) }
+	for len(gc_stack) > 0 {
+		x := pop(&gc_stack)
+		ex := &exprs[x]
+		ch: [3]int = {-1, -1, -1}
+		#partial switch ex.kind {
+		case .App: ch = {ex.a, ex.b, -1}
+		case .Lam, .Pi: ch = {ex.b, ex.c, -1}
+		case .Let: ch = {ex.b, ex.c, ex.d}
+		case .MData: ch = {ex.a, -1, -1}
+		case .Proj: ch = {ex.c, -1, -1}
+		}
+		for c in ch do if c >= wm && gc_map[c - wm] == 0 { gc_map[c - wm] = 1; append(&gc_stack, c) }
+	}
+	hc_truncate(wm)
+	next := wm
+	rm :: proc(c, wm: int) -> int { return c >= wm ? gc_map[c - wm] : c }
+	for i in 0 ..< n {
+		if gc_map[i] == 0 do continue
+		ex := exprs[wm + i]
+		#partial switch ex.kind {
+		case .App: ex.a = rm(ex.a, wm); ex.b = rm(ex.b, wm)
+		case .Lam, .Pi: ex.b = rm(ex.b, wm); ex.c = rm(ex.c, wm)
+		case .Let: ex.b = rm(ex.b, wm); ex.c = rm(ex.c, wm); ex.d = rm(ex.d, wm)
+		case .MData: ex.a = rm(ex.a, wm)
+		case .Proj: ex.c = rm(ex.c, wm)
+		}
+		exprs[next] = ex
+		gc_map[i] = next
+		next += 1
+	}
+	res := keep >= wm ? gc_map[keep - wm] : keep
+	resize(&exprs, next)
+	resize(&hc_next, next)
+	stamp_ctr += 1
+	for i in wm ..< next {
+		born[i] = u32(stamp_ctr)
+		hc_next[i] = -2
+		hc_insert(i, expr_hash(&exprs[i]))
+	}
+	gc_runs += 1
+	gc_freed += n - (next - wm)
+	return res
+}
+
 mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = i + 1}) }
 mk_fvar :: proc(i: int) -> int { return add_expr(Expr{kind = .FVar, a = i}) }
 mk_sort :: proc(l: int) -> int { return add_expr(Expr{kind = .Sort, a = l}) }
@@ -503,7 +573,7 @@ instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 	k := Inst_Key{e, v, off}
 	if r, ok := lc_get(&lc_inst, e, v, off); ok do return r
 	r := instantiate_raw(e, v, off)
-	lc_put(&lc_inst, e, v, off, r)
+	lc_put(&lc_inst, e, v, off, r, max(e, v, r))
 	return r
 }
 
@@ -543,7 +613,7 @@ instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
 	case .Proj: r = mk_proj(ex.a, ex.b, instantiate_n(ex.c, args, tok, off))
 	case: r = e
 	}
-	lc_put(&lc_inst2, e, tok, off, r)
+	lc_put(&lc_inst2, e, tok, off, r, max(e, tok, r))
 	return r
 }
 
@@ -553,7 +623,7 @@ abstract_fvar :: proc(e: int, fv: int, off: int = 0) -> int {
 	k := Inst_Key{e, fv, off}
 	if r, ok := lc_get(&lc_abs, e, fv, off); ok do return r
 	r := abstract_fvar_raw(e, fv, off)
-	lc_put(&lc_abs, e, fv, off, r)
+	lc_put(&lc_abs, e, fv, off, r, max(e, r))
 	return r
 }
 
@@ -578,7 +648,7 @@ inst_expr_levels :: proc(e: int, ps: []int, us: []int) -> int {
 	k := Lvl_Key{e, us_id(ps), us_id(us)}
 	if r, ok := lc_get(&lc_lvl, e, k.ps, k.us); ok do return r
 	r := inst_expr_levels_raw(e, ps, us)
-	lc_put(&lc_lvl, e, k.ps, k.us, r)
+	lc_put(&lc_lvl, e, k.ps, k.us, r, max(e, r))
 	return r
 }
 
@@ -657,7 +727,7 @@ whnf_core :: proc(e: int) -> int {
 	}
 	if r, ok := lc_get(&lc_whnfc, e, 0, 0); ok do return r
 	r := whnf_core_raw(e)
-	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, 0, 0, r)
+	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, 0, 0, r, max(e, r))
 	return r
 }
 
@@ -669,7 +739,7 @@ hist: map[string]int
 fuel: int
 fuel_out: bool
 EXPR_CAP :: 20_000_000
-FUEL_LIMIT :: 30_000_000
+FUEL_LIMIT :: 3_000_000_000
 BUDGET0 :: 20_000
 eff_limit: int = FUEL_LIMIT // current fuel cap; below FUEL_LIMIT while a budgeted strategy runs
 aborted: bool              // a budgeted strategy ran out of its budget
@@ -741,7 +811,7 @@ instantiate_env :: proc(e, env, off: int) -> int {
 	case .Proj: r = mk_proj(ex.a, ex.b, instantiate_env(ex.c, env, off))
 	case: r = e
 	}
-	lc_put(&lc_inst2, e, tok, off, r)
+	lc_put(&lc_inst2, e, tok, off, r, max(e, tok, r))
 	return r
 }
 
@@ -971,8 +1041,10 @@ head_height :: proc(e: int) -> int {
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
 	if r, ok := lc_get(&lc_whnf, e, 0, 0); ok do return r
+	wm := len(exprs)
 	r := whnf_raw(e)
-	if !aborted && !fuel_out do lc_put(&lc_whnf, e, 0, 0, r)
+	if len(exprs) - wm > gc_min do r = gc_region(wm, r)
+	if !aborted && !fuel_out do lc_put(&lc_whnf, e, 0, 0, r, max(e, r))
 	return r
 }
 
@@ -1050,7 +1122,11 @@ nat_to_bytes :: proc(v: ^big.Int) -> string {
 	bits, _ := big.count_bits(v)
 	n := (bits + 7) / 8
 	buf := make([]u8, n)
-	if n > 0 do big.int_to_bytes_big(v, buf)
+	if n > 0 {
+		big.int_to_bytes_big(v, buf)
+		// the library may read past the top digit for the last byte: keep only the real bits
+		buf[0] &= u8((1 << uint(bits - (n - 1) * 8)) - 1)
+	}
 	return string(buf)
 }
 lit_intern_s: map[string]int
@@ -1344,8 +1420,10 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 infer :: proc(e: int) -> (res: int, ok: bool) {
 	if trace_on { pc_inf += 1; if pc_inf % 100000 == 0 { fmt.eprintfln("P inf %d", pc_inf) } }
 	if r, hit := lc_get(&lc_infer, e, 0, 0); hit do return r, true
+	wm := len(exprs)
 	res, ok = infer_raw(e)
-	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, 0, 0, res)
+	if len(exprs) - wm > gc_min do res = gc_region(wm, ok ? res : -1)
+	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, 0, 0, res, max(e, res))
 	return
 }
 
@@ -1483,8 +1561,10 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if a0 == b0 do return true
 	k := [2]int{min(a0, b0), max(a0, b0)}
 	if r, ok := lc_get(&lc_defeq, k[0], k[1], 0); ok do return r != 0
+	wm := len(exprs)
 	r := def_eq_raw(a0, b0)
-	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0)
+	if len(exprs) - wm > gc_min do gc_region(wm, -1)
+	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0, k[1])
 	return r
 }
 
@@ -2212,6 +2292,7 @@ purge :: proc() {
 		for i in wm_exprs..<len(exprs) do kc[int(exprs[i].kind)] += 1
 		for p in Phase do fmt.eprintfln("NEW %v %d", p, phase_new[int(p)])
 		for k in Expr_Kind do fmt.eprintfln("KIND %v %d", k, kc[int(k)])
+		fmt.eprintfln("GC runs %d freed %d fuel %d stale %d", gc_runs, gc_freed, fuel, lc_stale)
 		fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
 	hc_truncate(wm_exprs)
 	resize(&exprs, wm_exprs)
@@ -2545,6 +2626,8 @@ main :: proc() {
 	n_ok, n_fail, n_skip := 0, 0, 0
 	if os.get_env("PROF", context.allocator) != "" { prof_on = true; prof_start() }
 	use_lazy = os.get_env("LAZY", context.allocator) != ""
+	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
+	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
 	// ids used by the export are never mixed with nodes the kernel creates while checking
 	decl_lines := make([dynamic]string)
@@ -2753,6 +2836,7 @@ main :: proc() {
 	fmt.printf("\n%d accepted, %d rejected, %d skipped\n", n_ok, n_fail, n_skip)
 	if os.get_env("PROF", context.allocator) != "" {
 		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
+		fmt.eprintfln("STALE %d gc %d", lc_stale, gc_runs)
 	}
 	if n_fail > 0 do os.exit(1)
 }
