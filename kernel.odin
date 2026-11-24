@@ -27,9 +27,10 @@ import "core:time"
 Level_Kind :: enum { Zero, Succ, Max, IMax, Param }
 Level :: struct { kind: Level_Kind, a, b: int } // Param: a = name id
 
-Expr_Kind :: enum { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
+Expr_Kind :: enum u8 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
 Expr :: struct {
 	kind:       Expr_Kind,
+	hasfv:      bool,  // contains a free variable (set in add_expr; not part of identity)
 	a, b, c, d: int,   // meaning depends on kind (see mk_* below)
 	lbr:        int,   // loose bvar range
 	us:         []int, // Const: level ids
@@ -465,6 +466,14 @@ add_expr :: proc(e: Expr) -> int {
 	h := expr_hash(&e)
 	if id := hc_find(&e, h); id >= 0 do return id
 	phase_new[int(caller_phase)] += 1
+	#partial switch e.kind {
+	case .FVar: e.hasfv = true
+	case .App: e.hasfv = exprs[e.a].hasfv || exprs[e.b].hasfv
+	case .Lam, .Pi: e.hasfv = exprs[e.b].hasfv || exprs[e.c].hasfv
+	case .Let: e.hasfv = exprs[e.b].hasfv || exprs[e.c].hasfv || exprs[e.d].hasfv
+	case .Proj: e.hasfv = exprs[e.c].hasfv
+	case .MData: e.hasfv = exprs[e.a].hasfv
+	}
 	append(&exprs, e)
 	if len(born) < len(exprs) do resize(&born, len(exprs))
 	born[len(exprs) - 1] = u32(stamp_ctr)
@@ -953,7 +962,7 @@ whnf_core_eager :: proc(e: int) -> int {
 	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
 	if fuel & 0xfff == 0 && len(exprs) - wm_exprs > EXPR_CAP { fuel_out = true }
 	if fuel_out || aborted do return e
-	if trace_on { wc_n += 1; if wc_n % 100000 == 0 { fmt.eprintfln("wc %d %s", wc_n, expr_str(e, 6)) } }
+	if trace_on { wc_n += 1; if wc_n % 100000 == 0 { fmt.eprintfln("wc %d %s", wc_n, expr_str(e, 2)) } }
 	cur := e
 	for {
 		ex := exprs[cur]
@@ -1010,6 +1019,7 @@ whnf_core_eager :: proc(e: int) -> int {
 }
 
 use_lazy: bool
+only_decl: string // debugging aid (ONLY=name): trust every other declaration
 whnf_core_raw :: proc(e: int) -> int { return use_lazy ? whnf_core_lazy(e) : whnf_core_eager(e) }
 
 // Unfold a definition at the head of e (one step). ok=false if impossible.
@@ -1023,6 +1033,7 @@ unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	d, found := env[hx.a]
 	if !found || d.kind != .Def || d.height < 0 do return e, false
 	if len(d.lparams) != len(hx.us) do return e, false
+	if prof_on do hist[names[hx.a]] += 1
 	r := inst_expr_levels(d.value, d.lparams, hx.us)
 	for a in args do r = mk_app(r, a)
 	return whnf_core(r), true
@@ -1580,7 +1591,7 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	if trace_on {
 		trace_n += 1
 		if trace_n > 4000000 do os.exit(3)
-		fmt.eprintfln("%d defeq %d %d %s  =?=  %s", trace_depth, a0, b0, expr_str(a0, trace_depth==3 ? 12 : 3), expr_str(b0, trace_depth==3 ? 12 : 3))
+		fmt.eprintfln("%d defeq %d %d %s  =?=  %s", trace_depth, a0, b0, expr_str(a0, trace_depth>=6 ? -5 : 3), expr_str(b0, trace_depth>=6 ? -5 : 3))
 	}
 	if trace_on && trace_depth == 30 {
 		dd :: proc(a, b: int, p: string) {
@@ -1640,8 +1651,14 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	}
 	if ea.kind == .NatLit && is_nat_zero_or_succ(b) do return def_eq(nat_lit_to_ctor(a), b)
 	if eb.kind == .NatLit && is_nat_zero_or_succ(a) do return def_eq(a, nat_lit_to_ctor(b))
-	if r, ok := reduce_nat(a); ok do return def_eq(r, b)
-	if r, ok := reduce_nat(b); ok do return def_eq(a, r)
+	// Like the official kernel's lazy delta step: Nat-literal arithmetic is only attempted here when both
+	// sides are closed. On open terms it forces whnf of the operands, which can walk a huge literal one
+	// successor at a time (e.g. `(x + 2^31) % 2^32` with x a variable) where plain unfolding of the two
+	// sides would have met quickly. whnf itself still reduces open terms whose operands become literals.
+	if !ea.hasfv && !eb.hasfv {
+		if r, ok := reduce_nat(a); ok do return def_eq(r, b)
+		if r, ok := reduce_nat(b); ok do return def_eq(a, r)
+	}
 	if ea.kind == .StrLit && eb.kind != .StrLit && eb.kind != .FVar do return def_eq(str_lit_to_ctor(a), b)
 	if eb.kind == .StrLit && ea.kind != .StrLit && ea.kind != .FVar do return def_eq(a, str_lit_to_ctor(b))
 	// lazy delta
@@ -2292,6 +2309,7 @@ purge :: proc() {
 		for i in wm_exprs..<len(exprs) do kc[int(exprs[i].kind)] += 1
 		for p in Phase do fmt.eprintfln("NEW %v %d", p, phase_new[int(p)])
 		for k in Expr_Kind do fmt.eprintfln("KIND %v %d", k, kc[int(k)])
+		for k, v in hist do if v > 2000 do fmt.eprintfln("UNFOLD %d %s", v, k)
 		fmt.eprintfln("GC runs %d freed %d fuel %d stale %d", gc_runs, gc_freed, fuel, lc_stale)
 		fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
 	hc_truncate(wm_exprs)
@@ -2626,6 +2644,7 @@ main :: proc() {
 	n_ok, n_fail, n_skip := 0, 0, 0
 	if os.get_env("PROF", context.allocator) != "" { prof_on = true; prof_start() }
 	use_lazy = os.get_env("LAZY", context.allocator) != ""
+	only_decl = os.get_env("ONLY", context.allocator)
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
@@ -2818,7 +2837,7 @@ main :: proc() {
 		fuel = 0; fuel_out = false; aborted = false; eff_limit = FUEL_LIMIT
 		if len(os.args) > 2 do fmt.eprintfln("checking %s", names[name])
 		trace_on = len(os.args) > 3 && os.args[3] == names[name]
-		ok_decl := !dup_decl && check_decl(d)
+		ok_decl := !dup_decl && ((only_decl != "" && names[name] != only_decl) || check_decl(d))
 		if dup_decl { failure = fmt.aprintf("duplicate declaration %s", names[name]) }
 		if fuel_out { ok_decl = false; failure = "resource limit exceeded (fuel)" }
 		if ok_decl {

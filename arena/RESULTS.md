@@ -126,3 +126,23 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 | 完整 Init | 58530 / 16，151 s，3.5 GB | 58530 / 16，181 s，3.9 GB |
 
 Init 仍拒绝的 16 个：4 个 Int32/Int64 的 instRx*HasSize_eq 触发资源上限，其余 12 个连带失败。
+
+## 更新：完整 Init 全部通过（58546 / 0）
+
+被拒绝的 4 个声明是 Int32 / Int64 的 instRxcHasSize_eq、instRxiHasSize_eq（Int8、Int16 版本能过，说明开销随位宽增长）。
+
+- 现象：报的是“资源上限”，实际燃料只用了约 200 万，触发的是单声明 2000 万新表达式的上限。展开直方图里 Nat.add._f、Nat.casesOn、Nat.add.match_1 各约 29 万次，跟踪里是一条从 2147483648（2^31）开始逐一减 1 的 Nat.rec 链。
+- 根因：def_eq 比较 `Nat.sub A B` 与 `HSub.hSub A' B'`（A、B 含自由变量 lo、hi，形如 `BitVec.toNat (rotate 32 x)`，即 `(x + 2^31) % 2^32`）时，先对左侧尝试 Nat 字面量算术，于是把操作数求 whnf。x 是变量，`%` 和 `≤` 只能按结构递归逐个后继展开，要走 2^31 步。
+- 官方内核在 lazy delta 里只对两侧都不含自由变量的项尝试 Nat 字面量算术，所以它直接展开右侧的 HSub.hSub，两边在 `Nat.sub` 处对齐后逐参数比较就结束了。
+- 修复：Expr 增加 hasfv 标志（建节点时由子节点合成，不参与哈希与相等；Expr_Kind 改为 u8，结构体仍为 72 字节）；def_eq 中的 reduce_nat 仅在两侧都闭合时尝试。whnf 中的 reduce_nat 不加此限制（nat-shift-huge 的 Open 用例要求开项在操作数化为字面量后仍能归约）。
+- 调试辅助：环境变量 `ONLY=<声明名>` 只检查一个声明、其余信任；`PROF=1` 下回收时打印展开次数超过 2000 的常量（UNFOLD 行）。
+
+| 项目 | 之前 | 现在 |
+|---|---|---|
+| 完整 Init | 58530 / 16，181 s，3.9 GB | 58546 / 0，115 s，1.7 GB |
+| Arena good（上限 400 s） | 138/138 | 138/138 |
+| Arena bad | 92/92 拒绝 | 92/92 拒绝 |
+| magma-list-deep-n36 | 187 s | 220 s |
+| unfold-before-literal | 84 s | 97 s |
+
+Arena 两个最慢用例本轮比上一轮慢约 15%，未做重复测量，不能区分是机器波动还是 hasfv 计算的开销。

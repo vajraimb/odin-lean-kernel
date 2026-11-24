@@ -4,7 +4,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.29,
+  "t": 0.23,
   "fail": ""
  },
  {
@@ -12,7 +12,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.34,
+  "t": 0.35,
   "fail": ""
  },
  {
@@ -28,7 +28,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.07,
+  "t": 1.18,
   "fail": ""
  },
  {
@@ -76,7 +76,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 29.89,
+  "t": 37.17,
   "fail": ""
  },
  {
@@ -84,7 +84,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.07,
+  "t": 0.08,
   "fail": ""
  },
  {
@@ -92,7 +92,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 5.85,
+  "t": 6.48,
   "fail": ""
  },
  {
@@ -100,7 +100,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.25,
+  "t": 0.26,
   "fail": ""
  },
  {
@@ -108,7 +108,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.23,
+  "t": 0.24,
   "fail": ""
  },
  {
@@ -124,7 +124,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.1,
+  "t": 0.11,
   "fail": ""
  },
  {
@@ -148,7 +148,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 30.99,
+  "t": 32.17,
   "fail": ""
  },
  {
@@ -156,7 +156,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 4.16,
+  "t": 4.57,
   "fail": ""
  },
  {
@@ -188,7 +188,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 3.45,
+  "t": 3.91,
   "fail": ""
  },
  {
@@ -196,7 +196,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 4.45,
+  "t": 4.66,
   "fail": ""
  },
  {
@@ -204,7 +204,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 3.2,
+  "t": 3.63,
   "fail": ""
  },
  {
@@ -212,7 +212,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.32,
+  "t": 1.31,
   "fail": ""
  },
  {
@@ -220,7 +220,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 6.65,
+  "t": 7.13,
   "fail": ""
  },
  {
@@ -228,7 +228,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 186.96,
+  "t": 220.32,
   "fail": ""
  },
  {
@@ -236,7 +236,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 38.1,
+  "t": 41.54,
   "fail": ""
  },
  {
@@ -244,7 +244,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 4.56,
+  "t": 4.89,
   "fail": ""
  },
  {
@@ -260,7 +260,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.08,
+  "t": 0.09,
   "fail": ""
  },
  {
@@ -268,7 +268,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.05,
+  "t": 0.06,
   "fail": ""
  },
  {
@@ -276,7 +276,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.37,
+  "t": 0.38,
   "fail": ""
  },
  {
@@ -292,7 +292,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.69,
+  "t": 0.66,
   "fail": ""
  },
  {
@@ -308,7 +308,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.21,
+  "t": 0.19,
   "fail": ""
  },
  {
@@ -316,7 +316,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.06,
+  "t": 0.08,
   "fail": ""
  },
  {
@@ -324,7 +324,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.67,
+  "t": 1.85,
   "fail": ""
  },
  {
@@ -332,7 +332,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 86.79,
+  "t": 95.86,
   "fail": ""
  },
  {
@@ -340,7 +340,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 83.83,
+  "t": 97.22,
   "fail": ""
  },
  {
@@ -524,7 +524,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -652,7 +652,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.04,
   "fail": ""
  },
  {
@@ -660,7 +660,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -692,7 +692,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -708,7 +708,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -716,7 +716,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -724,7 +724,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -732,7 +732,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -740,7 +740,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -748,7 +748,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -756,7 +756,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -764,7 +764,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.03,
+  "t": 0.04,
   "fail": ""
  },
  {
@@ -780,7 +780,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -796,7 +796,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -836,7 +836,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.02,
   "fail": ""
  },
  {
@@ -844,7 +844,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.1,
+  "t": 0.06,
   "fail": ""
  },
  {
@@ -860,7 +860,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -868,7 +868,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -900,7 +900,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -916,7 +916,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -932,7 +932,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -964,7 +964,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -972,7 +972,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -996,7 +996,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1004,7 +1004,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1012,7 +1012,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1020,7 +1020,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1028,7 +1028,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1060,7 +1060,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1068,7 +1068,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1076,7 +1076,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1084,7 +1084,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -1188,7 +1188,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive Nat: recursor Nat.rec has wrong K flag"
  },
  {
@@ -1196,7 +1196,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive False: recursor False.rec has wrong K flag"
  },
  {
@@ -1212,7 +1212,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.02,
+  "t": 0.03,
   "fail": "FAIL  inductive T: bad recursor rule"
  },
  {
@@ -1268,7 +1268,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.21,
+  "t": 0.2,
   "fail": "FAIL  inductive Native64ResultSortOwner: type expected: ((Native64ResultSortOwner x) h)"
  },
  {
@@ -1300,7 +1300,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.2,
+  "t": 0.21,
   "fail": "FAIL  inductive Native64TwoHashOwner: invalid (nested?) occurrence of the inductive type in (((((((\u2026 \u2026) Native64TwoHashOwner) (Native64TwoHashB.0.2525080234 (\u2026 "
  },
  {
@@ -1324,7 +1324,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.02,
   "fail": "FAIL  inductive J: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive J.j1)"
  },
  {
@@ -1340,7 +1340,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.02,
   "fail": "FAIL  inductive Q: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (Box Bool.false)"
  },
  {
@@ -1404,7 +1404,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 17.98,
+  "t": 20.64,
   "fail": "FAIL  ite_taken_branch_bad: value has type (((Eq (Array Nat)) piA) piA), expected (((Eq (Array Nat)) (((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) Bool.true)) piA) tA)) piA)"
  },
  {
@@ -1412,7 +1412,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 1.56,
+  "t": 1.47,
   "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
  },
  {
@@ -1420,7 +1420,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 28.5,
+  "t": 37.11,
   "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
  },
  {
@@ -1428,7 +1428,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 11.52,
+  "t": 13.89,
   "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
  },
  {
@@ -1444,7 +1444,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.05,
+  "t": 0.06,
   "fail": "FAIL  kernel_refute_cheap_last: value has type (((Eq ((Prod N) Bool)) ((((Prod.mk N) Bool) (count (N.S (\u2026 \u2026)))) Bool.false)) ((((Prod.mk N) Bool) (count (N.S (N"
  },
  {
@@ -1452,7 +1452,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 14.42,
+  "t": 17.75,
   "fail": "FAIL  short_circuit_and_bad: value has type (p : Nat) -> (q : Nat) -> (((Eq Bool) ((Bool.and Bool.true) ((\u2026 \u2026) #0))) ((Bool.and Bool.true) ((Nat.beq #1) #0))), "
  },
  {
@@ -1460,7 +1460,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 31.53,
+  "t": 33.58,
   "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
  },
  {
@@ -1628,7 +1628,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  projOutOfRange: projection index out of range"
  },
  {
@@ -1708,7 +1708,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  proofIrrelevanceBad: value has type (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> (((Eq #2) #1) #1), expected (p : Sort S(0)) -> (h1 : #0) -> (h2 : #1) -> "
  },
  {
@@ -1732,7 +1732,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  funEtaBad: value has type (x._@.Tutorial.4249243883._hygCtx._hyg.28 : Sort S(0)) -> (x._@.Tutorial.4249243883._hygCtx._hyg.30 : Sort S(0)) -> (x._@.Tutori"
  },
  {
