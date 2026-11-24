@@ -90,3 +90,10 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 - 完整 Init：58530 通过、16 拒绝（原 58522/24），151 s，3.5 GB。
 - Arena：good 136/138，bad 92/92 拒绝，无回归。
 - magma-list-pair-n21 / deep-n36 仍超限：n7 约每个四元组 3000 个表达式，n21 估计需要数亿个节点，需要节点回收或更好的缓存命中才能解决。
+
+## 更新：缓存命中率分析
+
+- 把有损缓存从 2^21 扩到 2^24 项，新建表达式数完全不变（7156502），说明未命中不是容量驱逐，而是项本身确实不同。
+- whnf_core 的未命中几乎全是 lambda 头的 beta 红式：n7 每个四元组约 200 次，每次替换生成约 15 个新节点；项里带着 Nat.Lemmas 的 reflects_decide 证明体，每个四元组都不同，无法共享。
+- whnf_core 对 Lam/Pi/Sort/Const/字面量/FVar 直接返回，不再进缓存：n7 5.1 s -> 4.4 s。
+- 结论：n21、n36 的瓶颈是每次 beta 都要实例化大型证明项，需要惰性替换（闭包式求值）或节点回收，缓存调参无法解决。

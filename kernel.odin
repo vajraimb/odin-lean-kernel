@@ -649,6 +649,9 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 
 
 whnf_core :: proc(e: int) -> int {
+	#partial switch exprs[e].kind {
+	case .Lam, .Pi, .Sort, .Const, .NatLit, .StrLit, .FVar: return e
+	}
 	if r, ok := lc_get(&lc_whnfc, e, 0, 0); ok do return r
 	r := whnf_core_raw(e)
 	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, 0, 0, r)
@@ -656,6 +659,9 @@ whnf_core :: proc(e: int) -> int {
 }
 
 wc_n: int
+prof_on: bool
+samp_n: int
+hist: map[string]int
 fuel: int
 fuel_out: bool
 EXPR_CAP :: 20_000_000
@@ -2340,7 +2346,7 @@ main :: proc() {
 	env = make(map[int]Decl)
 
 	n_ok, n_fail, n_skip := 0, 0, 0
-	if os.get_env("PROF", context.allocator) != "" do prof_start()
+	if os.get_env("PROF", context.allocator) != "" { prof_on = true; prof_start() }
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
 	// ids used by the export are never mixed with nodes the kernel creates while checking
 	decl_lines := make([dynamic]string)
