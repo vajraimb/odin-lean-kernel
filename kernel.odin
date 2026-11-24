@@ -62,6 +62,7 @@ exprs:   [dynamic]Expr
 env:     map[int]Decl
 fv_type: [dynamic]int // fvar id -> type
 fv_name: [dynamic]int
+fv_depth: [dynamic]int // idepth at which fv_type is valid
 
 Kernel_Error :: struct { msg: string }
 failure: Maybe(string) // first error of the current declaration
@@ -121,7 +122,7 @@ born: [dynamic]u32 // reclamation epoch in which each expression slot was (re)fi
 stamp_ctr: int = 1 // epoch: advanced by every gc_region
 lc_stale: int
 cache_gen: int = 1
-lc_inst2, lc_inst, lc_abs, lc_lvl, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
+lc_inst2, lc_inst, lc_abs, lc_lvl, lc_lift, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
 
 lc_slot :: proc(t: ^[]Ent, a, b, c: int) -> ^Ent {
 	if t^ == nil do t^ = make([]Ent, 1 << LC_BITS)
@@ -573,7 +574,8 @@ mk_let :: proc(name, ty, val, body: int) -> int {
 		lbr = max(exprs[ty].lbr, exprs[val].lbr, exprs[body].lbr - 1)})
 }
 
-// Replace loose bvar `off` by closed term v (v has no loose bvars).
+// Replace loose bvar `off` by v. A closed v is not lifted. An open v is lifted
+// when it is carried under a binder, so its loose bvars are not captured.
 Inst_Key :: struct { e, v, off: int }
 
 instantiate :: proc(e: int, v: int, off: int = 0) -> int {
@@ -586,6 +588,32 @@ instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 	return r
 }
 
+// Lift loose bvars >= off by n. Closed terms (and terms with no such bvar) are returned as-is,
+// so the closed-substituent path stays pointer-identical to the pre-lift code.
+lift :: proc(e, n, off: int) -> int {
+	if n == 0 || exprs[e].lbr <= off do return e
+	if r, ok := lc_get(&lc_lift, e, n, off); ok do return r
+	r := lift_raw(e, n, off)
+	lc_put(&lc_lift, e, n, off, r, max(e, r))
+	return r
+}
+lift_raw :: proc(e, n, off: int) -> int {
+	ex := exprs[e]
+	if ex.lbr <= off do return e
+	switch ex.kind {
+	case .BVar:
+		if ex.a >= off do return mk_bvar(ex.a + n)
+		return e
+	case .App: return mk_app(lift(ex.a, n, off), lift(ex.b, n, off))
+	case .Lam, .Pi: return mk_binder(ex.kind, ex.a, lift(ex.b, n, off), lift(ex.c, n, off + 1))
+	case .Let: return mk_let(ex.a, lift(ex.b, n, off), lift(ex.c, n, off), lift(ex.d, n, off + 1))
+	case .MData: return lift(ex.a, n, off)
+	case .Proj: return mk_proj(ex.a, ex.b, lift(ex.c, n, off))
+	case .FVar, .Sort, .Const, .Unsupported, .NatLit, .StrLit: return e
+	}
+	return e
+}
+
 instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 	enter(.Instantiate)
 	ex := exprs[e]
@@ -596,8 +624,14 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 		if ex.a > off do return mk_bvar(ex.a - 1)
 		return e
 	case .App: return mk_app(instantiate(ex.a, v, off), instantiate(ex.b, v, off))
-	case .Lam, .Pi: return mk_binder(ex.kind, ex.a, instantiate(ex.b, v, off), instantiate(ex.c, v, off + 1))
-	case .Let: return mk_let(ex.a, instantiate(ex.b, v, off), instantiate(ex.c, v, off), instantiate(ex.d, v, off + 1))
+	case .Lam, .Pi:
+		// closed substituent: do not lift (v is unchanged under binders). Open substituent
+		// must be lifted or it would be captured by the binder.
+		body_v := exprs[v].lbr == 0 ? v : lift(v, 1, 0)
+		return mk_binder(ex.kind, ex.a, instantiate(ex.b, v, off), instantiate(ex.c, body_v, off + 1))
+	case .Let:
+		body_v := exprs[v].lbr == 0 ? v : lift(v, 1, 0)
+		return mk_let(ex.a, instantiate(ex.b, v, off), instantiate(ex.c, v, off), instantiate(ex.d, body_v, off + 1))
 	case .MData: return instantiate(ex.a, v, off)
 	case .Proj: return mk_proj(ex.a, ex.b, instantiate(ex.c, v, off))
 	case .FVar, .Sort, .Const, .Unsupported, .NatLit, .StrLit: return e
@@ -605,7 +639,9 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 	return e
 }
 
-// simultaneous instantiation of the k outermost loose bvars (bvar j -> args[k-1-j]); args must be closed
+// simultaneous instantiation of the k outermost loose bvars (bvar j -> args[k-1-j]).
+// Arguments may be open: a replacement inserted under `off` binders is lifted by `off`.
+// Closed arguments are not lifted, so that path stays pointer-identical.
 instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
 	if exprs[e].lbr <= off do return e
 	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
@@ -614,7 +650,12 @@ instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
 	#partial switch ex.kind {
 	case .BVar:
 		j := ex.a - off
-		if j < len(args) { r = args[len(args) - 1 - j] } else { r = mk_bvar(ex.a - len(args)) }
+		if j < len(args) {
+			a := args[len(args) - 1 - j]
+			r = exprs[a].lbr == 0 ? a : lift(a, off, 0)
+		} else {
+			r = mk_bvar(ex.a - len(args))
+		}
 	case .App: r = mk_app(instantiate_n(ex.a, args, tok, off), instantiate_n(ex.b, args, tok, off))
 	case .Lam, .Pi: r = mk_binder(ex.kind, ex.a, instantiate_n(ex.b, args, tok, off), instantiate_n(ex.c, args, tok, off + 1))
 	case .Let: r = mk_let(ex.a, instantiate_n(ex.b, args, tok, off), instantiate_n(ex.c, args, tok, off), instantiate_n(ex.d, args, tok, off + 1))
@@ -683,6 +724,7 @@ inst_expr_levels_raw :: proc(e: int, ps: []int, us: []int) -> int {
 fresh_fvar :: proc(name, ty: int) -> int {
 	append(&fv_type, ty)
 	append(&fv_name, name)
+	append(&fv_depth, idepth)
 	return mk_fvar(len(fv_type) - 1)
 }
 
@@ -733,10 +775,17 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 whnf_core :: proc(e: int) -> int {
 	#partial switch exprs[e].kind {
 	case .Lam, .Pi, .Sort, .Const, .NatLit, .StrLit, .FVar: return e
+	case .BVar:
+		// No let is open in the inference context, so this bvar is stuck.
+		if len(ictx) == 0 do return e
 	}
-	if r, ok := lc_get(&lc_whnfc, e, 0, 0); ok do return r
+	// Loose bvars are hash-consed by index alone, so a cache key that ignores the
+	// inference context would confuse every binder. Closed terms are context-free.
+	open := exprs[e].lbr > 0
+	ck := open ? ctx_key() : 0
+	if r, ok := lc_get(&lc_whnfc, e, ck, open ? 1 : 0); ok do return r
 	r := whnf_core_raw(e)
-	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, 0, 0, r, max(e, r))
+	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, ck, open ? 1 : 0, r, max(e, r))
 	return r
 }
 
@@ -812,7 +861,12 @@ instantiate_env :: proc(e, env, off: int) -> int {
 	#partial switch ex.kind {
 	case .BVar:
 		th := env_get(env, ex.a - off)
-		if th >= 0 { r = force_thunk(th) } else { r = mk_bvar(ex.a - envnodes[env].n) }
+		if th >= 0 {
+			r = force_thunk(th)
+			if off > 0 && exprs[r].lbr > 0 do r = lift(r, off, 0)
+		} else {
+			r = mk_bvar(ex.a - envnodes[env].n)
+		}
 	case .App: r = mk_app(instantiate_env(ex.a, env, off), instantiate_env(ex.b, env, off))
 	case .Lam, .Pi: r = mk_binder(ex.kind, ex.a, instantiate_env(ex.b, env, off), instantiate_env(ex.c, env, off + 1))
 	case .Let: r = mk_let(ex.a, instantiate_env(ex.b, env, off), instantiate_env(ex.c, env, off), instantiate_env(ex.d, env, off + 1))
@@ -844,8 +898,17 @@ whnf_core_lazy :: proc(e: int) -> int {
 		stuck := false
 		#partial switch ex.kind {
 		case .BVar:
-			th := env_get(env, ex.a)
-			if th < 0 { stuck = true } else { t, env = whnf_core(force_thunk(th)), -1 }
+			// Binders the lazy machine itself opened live in `env`. A bvar past that
+			// env is loose in the term passed to whnf and may be a let opened by infer.
+			covered := env >= 0 && ex.a < envnodes[env].n
+			if covered {
+				th := env_get(env, ex.a)
+				if th < 0 { stuck = true } else { t, env = whnf_core(force_thunk(th)), -1 }
+			} else if z, okz := ctx_zeta(ex.a - (env >= 0 ? envnodes[env].n : 0)); okz {
+				t, env = z, -1
+			} else {
+				stuck = true
+			}
 		case .MData: t = ex.a
 		case .Let:
 			th := new_thunk(ex.c, env)
@@ -967,6 +1030,14 @@ whnf_core_eager :: proc(e: int) -> int {
 	for {
 		ex := exprs[cur]
 		#partial switch ex.kind {
+		case .BVar:
+			// Zeta for a let that infer opened into the context instead of copying the body.
+			if z, okz := ctx_zeta(ex.a); okz {
+				if z == cur do return cur
+				cur = z
+				continue
+			}
+			return cur
 		case .MData: cur = ex.a
 		case .Let:   cur = instantiate(ex.d, ex.c)
 		case .Proj:
@@ -1051,11 +1122,14 @@ head_height :: proc(e: int) -> int {
 
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
-	if r, ok := lc_get(&lc_whnf, e, 0, 0); ok do return r
+	open := exprs[e].lbr > 0
+	ck := open ? ctx_key() : 0
+	tag := open ? 1 : 0
+	if r, ok := lc_get(&lc_whnf, e, ck, tag); ok do return r
 	wm := len(exprs)
 	r := whnf_raw(e)
 	if len(exprs) - wm > gc_min do r = gc_region(wm, r)
-	if !aborted && !fuel_out do lc_put(&lc_whnf, e, 0, 0, r, max(e, r))
+	if !aborted && !fuel_out do lc_put(&lc_whnf, e, ck, tag, r, max(e, r))
 	return r
 }
 
@@ -1428,24 +1502,104 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 
 // ---------------------------------------------------------------- type inference
 
+// Inference context. Binders are opened onto this stack instead of substituting a
+// fresh fvar (lambda/pi) or the let value through the whole body. `val < 0` means
+// the binder has no value (lambda, pi). `depth` is the de Bruijn depth at which
+// `ty` and `val` are valid; the body is checked one level deeper.
+// Loose bvars are shared by index, so caches that key only on the expression id
+// are unsound for open terms; `ctx_stamp` is part of those keys. `ctx_floor`
+// hides the outer context while a closed subterm is checked, so its bvars cannot
+// see binders it does not sit under.
+CtxEnt :: struct { ty, val, depth, saved: int }
+ictx: [dynamic]CtxEnt
+ctx_floor: int
+ctx_stamp: int = 1
+next_stamp: int = 1
+idepth: int
+
+// Cache key for an open term. Loose bvars are shared by index, and a closed
+// subterm raises ctx_floor without pushing, so both the stamp and the floor
+// have to participate. Closed-term caches keep using 0.
+// Stamps are not reused. Pop restores the stamp of the context we return to,
+// so two subterms checked in the same context (the shared arguments in app-lam)
+// hit the same cache key, while a later sibling binder gets a fresh stamp and
+// cannot see the previous binder's entries.
+ctx_key :: proc() -> int {
+	return ctx_stamp + (ctx_floor << 32)
+}
+
+ctx_push :: proc(ty, val: int) {
+	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp})
+	next_stamp += 1
+	ctx_stamp = next_stamp
+}
+ctx_pop :: proc() {
+	ent := pop(&ictx)
+	ctx_stamp = ent.saved
+}
+// Value of let-bound bvar `index` at the current depth, if this binder was opened
+// by infer (not by a term-level let, which whnf still substitutes directly).
+ctx_zeta :: proc(index: int) -> (int, bool) {
+	if index < 0 || index >= len(ictx) do return 0, false
+	slot := len(ictx) - 1 - index
+	if slot < ctx_floor do return 0, false
+	ent := ictx[slot]
+	if ent.val < 0 do return 0, false
+	d := idepth - ent.depth
+	if d < 0 do return 0, false
+	return lift(ent.val, d, 0), true
+}
+
 infer :: proc(e: int) -> (res: int, ok: bool) {
 	if trace_on { pc_inf += 1; if pc_inf % 100000 == 0 { fmt.eprintfln("P inf %d", pc_inf) } }
-	if r, hit := lc_get(&lc_infer, e, 0, 0); hit do return r, true
+	if e < 0 || e >= len(exprs) do return 0, fail("reference to undefined expression %d", e)
+	// Closed terms do not mention the context. Open terms do, and the same bvar
+	// index is a different binder under a different stamp.
+	// An fvar is syntactically closed, but its recorded type may mention the
+	// de Bruijn context that was open when it was created.
+	closed := exprs[e].lbr == 0
+	if closed && exprs[e].kind == .FVar {
+		ty := fv_type[exprs[e].a]
+		if ty >= 0 && ty < len(exprs) && exprs[ty].lbr > 0 do closed = false
+	}
+	ck := closed ? 0 : ctx_key()
+	tag := closed ? 0 : 1
+	if r, hit := lc_get(&lc_infer, e, ck, tag); hit do return r, true
+	saved_floor := ctx_floor
+	if closed do ctx_floor = len(ictx)
+	defer ctx_floor = saved_floor
 	wm := len(exprs)
 	res, ok = infer_raw(e)
+	// A syntactically closed term can still have a context-dependent type
+	// (the fvar case above). Never store that type in the global slot.
+	if ok && exprs[res].lbr > 0 {
+		closed = false
+		ck = ctx_key()
+		tag = 1
+	}
 	if len(exprs) - wm > gc_min do res = gc_region(wm, ok ? res : -1)
-	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, 0, 0, res, max(e, res))
+	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, ck, tag, res, max(e, res))
 	return
 }
 
 infer_raw :: proc(e: int) -> (res: int, ok: bool) {
 	enter(.Infer)
-	if prof_on { inf_n += 1; if inf_n % 2000000 == 0 { fmt.eprintfln("INF %d exprs %d %v", inf_n, len(exprs), exprs[e].kind) } }
+	if prof_on do inf_n += 1
 	if e < 0 || e >= len(exprs) do return 0, fail("reference to undefined expression %d", e)
 	ex := exprs[e]
 	switch ex.kind {
-	case .BVar: return 0, fail("loose bound variable")
-	case .FVar: return fv_type[ex.a], true
+	case .BVar:
+		slot := len(ictx) - 1 - ex.a
+		if ex.a < 0 || slot < ctx_floor || slot >= len(ictx) do return 0, fail("loose bound variable")
+		ent := ictx[slot]
+		shift := idepth - ent.depth
+		if shift < 0 do return 0, fail("loose bound variable")
+		return lift(ent.ty, shift, 0), true
+	case .FVar:
+		ty := fv_type[ex.a]
+		d := idepth - fv_depth[ex.a]
+		if d < 0 do return 0, fail("free variable used outside the context it was created in")
+		return lift(ty, d, 0), true
 	case .Sort: return mk_sort(add_level(Level{.Succ, ex.a, 0})), true
 	case .MData: return infer(ex.a)
 	case .Const:
@@ -1464,19 +1618,36 @@ infer_raw :: proc(e: int) -> (res: int, ok: bool) {
 		return instantiate(exprs[ft].c, ex.b), true
 	case .Lam:
 		_ = ensure_sort(ex.b) or_return
-		fv := fresh_fvar(ex.a, ex.b)
-		bt := infer(instantiate(ex.c, fv)) or_return
-		return mk_binder(.Pi, ex.a, ex.b, abstract_fvar(bt, exprs[fv].a)), true
+		ctx_push(ex.b, -1)
+		idepth += 1
+		bt, bok := infer(ex.c)
+		idepth -= 1
+		ctx_pop()
+		if !bok do return 0, false
+		return mk_binder(.Pi, ex.a, ex.b, bt), true
 	case .Pi:
 		u := ensure_sort(ex.b) or_return
-		fv := fresh_fvar(ex.a, ex.b)
-		v := ensure_sort(instantiate(ex.c, fv)) or_return
+		ctx_push(ex.b, -1)
+		idepth += 1
+		v, vok := ensure_sort(ex.c)
+		idepth -= 1
+		ctx_pop()
+		if !vok do return 0, false
 		return mk_sort(add_level(Level{.IMax, u, v})), true
 	case .Let:
 		_ = ensure_sort(ex.b) or_return
 		vt := infer(ex.c) or_return
 		if !def_eq(vt, ex.b) do return 0, fail("let value type mismatch")
-		return infer(instantiate(ex.d, ex.c))
+		// The body is checked against the let binding, then only the resulting
+		// type is instantiated with the value. Copying the body was quadratic
+		// in the size of a let tower (let-ladder) and is not required to compute the type.
+		ctx_push(ex.b, ex.c)
+		idepth += 1
+		bt, bok2 := infer(ex.d)
+		idepth -= 1
+		ctx_pop()
+		if !bok2 do return 0, false
+		return instantiate(bt, ex.c), true
 	case .Proj:
 		st := infer(ex.c) or_return
 		st = whnf(st)
@@ -1571,11 +1742,15 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if trace_on { pc_de += 1; if pc_de % 3000 == 0 { fmt.eprintfln("P de %d", pc_de) } }
 	if a0 == b0 do return true
 	k := [2]int{min(a0, b0), max(a0, b0)}
-	if r, ok := lc_get(&lc_defeq, k[0], k[1], 0); ok do return r != 0
+	// Open terms are definitionally equal only relative to the current context
+	// (a let-bound bvar unfolds by zeta). Closed terms keep the old key.
+	open := exprs[a0].lbr > 0 || exprs[b0].lbr > 0
+	ck := open ? ctx_key() : 0
+	if r, ok := lc_get(&lc_defeq, k[0], k[1], ck); ok do return r != 0
 	wm := len(exprs)
 	r := def_eq_raw(a0, b0)
 	if len(exprs) - wm > gc_min do gc_region(wm, -1)
-	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0, k[1])
+	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], ck, r ? 1 : 0, k[1])
 	return r
 }
 
@@ -2318,6 +2493,7 @@ purge :: proc() {
 	resize(&levels, wm_levels)
 	resize(&fv_type, wm_fv)
 	resize(&fv_name, wm_fv)
+	resize(&fv_depth, wm_fv)
 	cache_gen += 1
 	delete(canon_memo); canon_memo = nil
 	delete(sem_memo); sem_memo = nil
