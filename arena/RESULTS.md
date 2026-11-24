@@ -218,3 +218,26 @@ let-ladder、app-lam、beta-ladder 的差距大于方差。其余用例的均值
 - 没有把默认切到 `LAZY=1`。它能再消掉 beta-ladder 的拷贝，但以前会拖慢 unfold-before-literal 和 deep-n36，这次没有重测那条组合。
 - n21 / n36 仍是每次 beta 都实例化大证明项。要再降需要把延迟替换做成表达式节点。并行数组布局也没做。
 - 环境里没有完整 Init 导出，这次没有 Init 数字。
+
+## 更新：大函数体的 beta / let 交给闭包机
+
+急切 whnf 在替换一个大函数体时，会复制代入变量能到达的每个节点。`beta-ladder` 因此是 Θ(n²)。`LAZY=1` 整段切到闭包机能消掉这次拷贝（beta-ladder 约 1.8 s → 0.03 s，deep-n36 约 101 s → 63 s），但 unfold-before-literal 从约 52 s 退到 75 s，因为小 beta 上闭包机的常数更大。
+
+做法：仍从急切机出发。只有 let 体或即将代入的 lambda 体超过 96 个节点时，把这一次 whnf 的剩余部分交给闭包机。节点数走到预算就停，DAG 不会把它撑爆。`EAGER_BETA=1` 恢复旧的复制路径，`BETA_NODES` 可改阈值。96 是量出来的：64 会让 pair-n7 变慢，256 接不住 magma 的证明体。
+
+对照的是上一轮（本地上下文推断、急切 beta）的 `-o:speed` 构建。用户态 CPU，`taskset -c 0`，交错重复。
+
+| 用例 | 次数 | 上一轮 mean (sd) | 本轮 mean (sd) |
+|---|---|---|---|
+| beta-ladder | 3 | 1.775 (0.037) | 0.023 (0.005) |
+| magma-list-deep-n21 | 3 | 3.499 (0.053) | 2.813 (0.031) |
+| magma-list-pair-n21 | 2 | 21.872 (0.392) | 20.547 (0.259) |
+| magma-list-deep-n36 | 2 | 104.355 (1.584) | 79.012 (2.169) |
+| unfold-before-literal | 1 | 52.788 | 52.931 |
+| magma-list-pair-n7 | 3 | 2.539 (0.276) | 2.532 (0.087) |
+
+beta-ladder、deep-n21、deep-n36、pair-n21 的差距大于方差。unfold 和 pair-n7 落在方差里。全程 `rc=0`。
+
+正确性：`python3 arena/run.py ./kernel 400`。good 138/138 接受，bad 92/92 拒绝。
+
+未做：闭包机仍在返回时把中性项的参数强制回表达式，被丢掉的证明如果出现在最终脊柱上还是会被复制。要把 deep-n36 再降下去，需要延迟替换本身成为表达式节点。完整 Init 这次没有测。

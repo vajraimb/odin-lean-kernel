@@ -1039,7 +1039,11 @@ whnf_core_eager :: proc(e: int) -> int {
 			}
 			return cur
 		case .MData: cur = ex.a
-		case .Let:   cur = instantiate(ex.d, ex.c)
+		case .Let:
+			// A long let body is quadratic to copy. Small lets stay on the eager path:
+			// the closure machine is slower there (unfold-before-literal).
+			if !eager_beta && body_exceeds(ex.d, beta_nodes) do return whnf_core_lazy(cur)
+			cur = instantiate(ex.d, ex.c)
 		case .Proj:
 			st := whnf(ex.c)
 			if exprs[st].kind == .StrLit do st = whnf(str_lit_to_ctor(st))
@@ -1060,6 +1064,11 @@ whnf_core_eager :: proc(e: int) -> int {
 					body = exprs[body].c
 					i += 1
 				}
+				// Instantiating a large body copies every node the substituted
+				// variable can reach (a lambda spine, or a proof). The closure
+				// machine substitutes only what it forces. Small bodies are
+				// cheaper to copy; always-lazy regresses unfold-before-literal.
+				if !eager_beta && body_exceeds(body, beta_nodes) do return whnf_core_lazy(cur)
 				if i == 1 { body = instantiate(body, args[0]) }
 				else {
 					tok := mk_sort(0)
@@ -1090,6 +1099,52 @@ whnf_core_eager :: proc(e: int) -> int {
 }
 
 use_lazy: bool
+eager_beta: bool // EAGER_BETA=1: copy through beta/let instead of the closure machine
+// Bodies larger than this are reduced by the closure machine. Smaller ones stay
+// on the eager copier: the closure machine is slower on the small betas in
+// unfold-before-literal, and faster once the copied body is a long spine or a proof.
+// 96 keeps pair-n7 on the eager path (64 did not) and still catches the magma proofs
+// (256 does not).
+beta_nodes: int = 96
+
+// True when `root` contains more than `budget` nodes. The walk stops at the budget,
+// so a DAG cannot blow it up. A full fixed stack also counts as big.
+body_exceeds :: proc(root, budget: int) -> bool {
+	if budget <= 0 do return true
+	stack: [96]int
+	sp := 1
+	stack[0] = root
+	n := 0
+	for sp > 0 {
+		sp -= 1
+		e := stack[sp]
+		n += 1
+		if n > budget do return true
+		ex := exprs[e]
+		#partial switch ex.kind {
+		case .App:
+			if sp + 2 > len(stack) do return true
+			stack[sp] = ex.a; sp += 1
+			stack[sp] = ex.b; sp += 1
+		case .Lam, .Pi:
+			if sp + 2 > len(stack) do return true
+			stack[sp] = ex.b; sp += 1
+			stack[sp] = ex.c; sp += 1
+		case .Let:
+			if sp + 3 > len(stack) do return true
+			stack[sp] = ex.b; sp += 1
+			stack[sp] = ex.c; sp += 1
+			stack[sp] = ex.d; sp += 1
+		case .MData:
+			if sp + 1 > len(stack) do return true
+			stack[sp] = ex.a; sp += 1
+		case .Proj:
+			if sp + 1 > len(stack) do return true
+			stack[sp] = ex.c; sp += 1
+		}
+	}
+	return false
+}
 only_decl: string // debugging aid (ONLY=name): trust every other declaration
 whnf_core_raw :: proc(e: int) -> int { return use_lazy ? whnf_core_lazy(e) : whnf_core_eager(e) }
 
@@ -2820,6 +2875,8 @@ main :: proc() {
 	n_ok, n_fail, n_skip := 0, 0, 0
 	if os.get_env("PROF", context.allocator) != "" { prof_on = true; prof_start() }
 	use_lazy = os.get_env("LAZY", context.allocator) != ""
+	eager_beta = os.get_env("EAGER_BETA", context.allocator) != ""
+	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
