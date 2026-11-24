@@ -64,3 +64,20 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 - 每个声明开始时重置预算状态；运行器改用各测试 yaml 里的超时（上限 150 秒）
 - good: 接受 134 / 138；bad: 92 / 92 拒绝
 - 剩余：magma-list-deep-n36 与 magma-list-pair-n21 因表达式节点数超过内存上限被拒，app-lam 与 gf3-matrix-product 超时（常数因子问题）
+
+## 更新：性能优化
+
+- 哈希化 hash-cons 表和宇宙层级表，所有缓存改为按代数标记的直接映射有损缓存，清缓存变为 O(1)。
+- Nat 字面量由十进制字符串改为大端字节串，线性时间读写（原先十进制转换为二次复杂度）。
+- 字面量按 id 比较，去掉大字符串临时拷贝。
+
+| 项目 | 优化前 | 优化后 |
+|---|---|---|
+| 完整 Init（58522 通过，24 拒绝，结果不变） | 271 s，5.3 GB | 128 s，2.7 GB |
+| app-lam | 超时（>150 s） | 22 s |
+| gf3-matrix-product | 超时 | 31 s |
+| unfold-before-literal | 约 119 s | 73 s |
+| Arena good | 134/138 | 136/138 |
+| Arena bad | 92/92 拒绝 | 92/92 拒绝 |
+
+仍失败：magma-list-deep-n36、magma-list-pair-n21（资源上限）。

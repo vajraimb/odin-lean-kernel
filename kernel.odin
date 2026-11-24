@@ -11,6 +11,7 @@
 // types are NOT checked (strict positivity is).
 package main
 
+import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
 import "core:unicode/utf8"
@@ -18,6 +19,7 @@ import "core:math/big"
 import "core:os"
 import "core:slice"
 import "core:strings"
+import "core:time"
 
 // ---------------------------------------------------------------- data
 
@@ -65,6 +67,67 @@ failure: Maybe(string) // first error of the current declaration
 fail :: proc(format: string, args: ..any) -> bool {
 	if failure == nil do failure = fmt.aprintf(format, ..args)
 	return false
+}
+
+
+// ---- sampling profiler (PROF=1): attributes SIGPROF ticks to the phase that is running
+Phase :: enum u8 { Other, AddExpr, Instantiate, Iota, WhnfCore, DefEq, Infer, ReduceNat, Unfold, InstLevels, GetApp, Whnf, Env }
+phase: Phase
+phase_counts: [16]int
+foreign import libc "system:c"
+Itimerval :: struct { interval_s, interval_us, value_s, value_us: i64 }
+foreign libc {
+	signal   :: proc(sig: i32, handler: proc "c" (i32)) -> rawptr ---
+	setitimer :: proc(which: i32, new_value: ^Itimerval, old_value: ^Itimerval) -> i32 ---
+}
+prof_ticks: int
+t_args, t_op, t_mk, t_nv: time.Duration
+n_nv: int
+op_n: map[string]int
+op_t: map[string]time.Duration
+prof_handler :: proc "c" (sig: i32) {
+	phase_counts[int(phase)] += 1
+	prof_ticks += 1
+	if prof_ticks == 8000 {
+		context = runtime.default_context()
+		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
+		fmt.eprintfln("nv %v n %d", t_nv, n_nv)
+		fmt.eprintfln("args %v op %v mk %v", t_args, t_op, t_mk)
+		for k, v in op_n do fmt.eprintfln("%s %d %v", k, v, op_t[k])
+		os.exit(3)
+	}
+}
+prof_start :: proc() {
+	signal(27, prof_handler) // SIGPROF
+	it := Itimerval{0, 1000, 0, 1000}
+	setitimer(2, &it, nil)   // ITIMER_PROF
+}
+@(deferred_in_out = _leave)
+enter :: proc(p: Phase) -> Phase { old := phase; phase = p; return old }
+_leave :: proc(p: Phase, old: Phase) { phase = old }
+
+
+// ---------------------------------------------------------------- lossy caches
+// Direct-mapped caches with a generation stamp: clearing is O(1) and memory stays bounded.
+LC_BITS :: 21
+Ent :: struct { a, b, c, r, gen: int }
+cache_gen: int = 1
+lc_inst, lc_abs, lc_lvl, lc_whnfc, lc_whnf, lc_infer, lc_defeq: []Ent
+
+lc_slot :: proc(t: ^[]Ent, a, b, c: int) -> ^Ent {
+	if t^ == nil do t^ = make([]Ent, 1 << LC_BITS)
+	h := u64(a) * 0x9E3779B97F4A7C15 ~ u64(b) * 0xC2B2AE3D27D4EB4F ~ u64(c) * 0x165667B19E3779F9
+	h = (h ~ (h >> 31)) * 0xFF51AFD7ED558CCD
+	return &t^[int(h >> 20) & ((1 << LC_BITS) - 1)]
+}
+lc_get :: proc(t: ^[]Ent, a, b, c: int) -> (int, bool) {
+	e := lc_slot(t, a, b, c)
+	if e.gen == cache_gen && e.a == a && e.b == b && e.c == c do return e.r, true
+	return 0, false
+}
+lc_put :: proc(t: ^[]Ent, a, b, c, r: int) {
+	e := lc_slot(t, a, b, c)
+	e^ = Ent{a, b, c, r, cache_gen}
 }
 
 // ---------------------------------------------------------------- levels
@@ -292,45 +355,123 @@ level_inst :: proc(l: int, ps: []int, us: []int) -> int {
 
 Expr_Key :: struct { kind: Expr_Kind, a, b, c, d, us: int }
 expr_hc: map[Expr_Key]int
-us_intern: map[string]int
+us_tab: [dynamic][]int           // interned level lists; id = index + 1
+us_idx: map[u64][dynamic]int     // hash -> candidate ids
 
 us_id :: proc(us: []int) -> int {
-	s := fmt.tprint(us)
-	id, ok := us_intern[s]
-	if !ok {
-		id = len(us_intern) + 1
-		us_intern[strings.clone(s)] = id
+	h: u64 = 14695981039346656037
+	for x in us { h = (h ~ u64(x)) * 1099511628211 }
+	cands, found := us_idx[h]
+	if found {
+		for c in cands {
+			t := us_tab[c - 1]
+			if len(t) == len(us) {
+				same := true
+				for i in 0 ..< len(t) do if t[i] != us[i] { same = false; break }
+				if same do return c
+			}
+		}
+	} else {
+		cands = make([dynamic]int)
 	}
-	return id
+	append(&us_tab, slice.clone(us))
+	append(&cands, len(us_tab))
+	us_idx[h] = cands
+	return len(us_tab)
 }
 
 expr_key :: proc(e: Expr) -> Expr_Key {
 	k := Expr_Key{kind = e.kind, a = e.a, b = e.b, c = e.c, d = e.d}
 	if e.kind == .Lam || e.kind == .Pi || e.kind == .Let do k.a = 0 // binder names are irrelevant
-	if len(e.us) > 0 {
-		s := fmt.tprint(e.us)
-		id, ok := us_intern[s]
-		if !ok {
-			id = len(us_intern) + 1
-			us_intern[strings.clone(s)] = id
-		}
-		k.us = id
-	}
+	if len(e.us) > 0 do k.us = us_id(e.us)
 	return k
 }
 
 decl_start_exprs: int
+
+// Hash-consing table: chained buckets over expression ids. Chains run from the newest to the
+// oldest id, so dropping the newest expressions only pops chain heads.
+hc_buckets: []int       // head id of each chain, -1 if empty
+hc_next: [dynamic]int   // next id in the chain; -2 = not registered
+hc_count: int
+
+expr_hash :: proc(e: ^Expr) -> u64 {
+	h := u64(e.kind) * 0x9E3779B97F4A7C15
+	a := e.a
+	if e.kind == .Lam || e.kind == .Pi || e.kind == .Let do a = 0 // binder names are irrelevant
+	h = (h ~ u64(a)) * 0xFF51AFD7ED558CCD
+	h = (h ~ (h >> 29) ~ u64(e.b)) * 0xC4CEB9FE1A85EC53
+	h = (h ~ (h >> 31) ~ u64(e.c)) * 0xFF51AFD7ED558CCD
+	h = (h ~ (h >> 29) ~ u64(e.d)) * 0xC4CEB9FE1A85EC53
+	for u in e.us do h = (h ~ (h >> 31) ~ u64(u)) * 0x9E3779B97F4A7C15
+	return h ~ (h >> 32)
+}
+
+expr_same :: proc(x, y: ^Expr) -> bool {
+	if x.kind != y.kind || x.b != y.b || x.c != y.c || x.d != y.d || len(x.us) != len(y.us) do return false
+	if x.a != y.a && !(x.kind == .Lam || x.kind == .Pi || x.kind == .Let) do return false
+	for i in 0 ..< len(x.us) do if x.us[i] != y.us[i] do return false
+	return true
+}
+
+hc_find :: proc(e: ^Expr, h: u64) -> int {
+	if len(hc_buckets) == 0 do return -1
+	i := hc_buckets[int(h) & (len(hc_buckets) - 1)]
+	for i >= 0 {
+		if expr_same(&exprs[i], e) do return i
+		i = hc_next[i]
+	}
+	return -1
+}
+
+hc_insert :: proc(id: int, h: u64) {
+	if hc_count * 2 >= len(hc_buckets) {
+		n := max(1 << 16, len(hc_buckets) * 2)
+		delete(hc_buckets)
+		hc_buckets = make([]int, n)
+		for j in 0 ..< n do hc_buckets[j] = -1
+		for j in 0 ..< len(exprs) {
+			if j < len(hc_next) && hc_next[j] != -2 && j != id {
+				hh := expr_hash(&exprs[j])
+				b := int(hh) & (n - 1)
+				hc_next[j] = hc_buckets[b]
+				hc_buckets[b] = j
+			}
+		}
+	}
+	b := int(h) & (len(hc_buckets) - 1)
+	for len(hc_next) <= id do append(&hc_next, -2)
+	hc_next[id] = hc_buckets[b]
+	hc_buckets[b] = id
+	hc_count += 1
+}
+
+add_calls: int
 add_expr :: proc(e: Expr) -> int {
-	k := expr_key(e)
-	if id, ok := expr_hc[k]; ok do return id
+	enter(.AddExpr)
+	add_calls += 1
+	e := e
+	h := expr_hash(&e)
+	if id := hc_find(&e, h); id >= 0 do return id
 	append(&exprs, e)
-	expr_hc[k] = len(exprs) - 1
+	hc_insert(len(exprs) - 1, h)
 	return len(exprs) - 1
 }
 
 hc_register :: proc(i: int) {
-	k := expr_key(exprs[i])
-	if _, ok := expr_hc[k]; !ok do expr_hc[k] = i
+	h := expr_hash(&exprs[i])
+	if hc_find(&exprs[i], h) < 0 do hc_insert(i, h)
+}
+
+hc_truncate :: proc(wm: int) {
+	for i := len(exprs) - 1; i >= wm; i -= 1 {
+		if i < len(hc_next) && hc_next[i] != -2 {
+			h := expr_hash(&exprs[i])
+			hc_buckets[int(h) & (len(hc_buckets) - 1)] = hc_next[i]
+			hc_count -= 1
+		}
+	}
+	if len(hc_next) > wm do resize(&hc_next, wm)
 }
 mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = i + 1}) }
 mk_fvar :: proc(i: int) -> int { return add_expr(Expr{kind = .FVar, a = i}) }
@@ -352,19 +493,19 @@ mk_let :: proc(name, ty, val, body: int) -> int {
 
 // Replace loose bvar `off` by closed term v (v has no loose bvars).
 Inst_Key :: struct { e, v, off: int }
-inst_cache: map[Inst_Key]int
 
 instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 	if trace_on { pc_inst += 1; if pc_inst % 100000 == 0 { fmt.eprintfln("P inst %d", pc_inst) } }
 	if exprs[e].lbr <= off do return e
 	k := Inst_Key{e, v, off}
-	if r, ok := inst_cache[k]; ok do return r
+	if r, ok := lc_get(&lc_inst, e, v, off); ok do return r
 	r := instantiate_raw(e, v, off)
-	inst_cache[k] = r
+	lc_put(&lc_inst, e, v, off, r)
 	return r
 }
 
 instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
+	enter(.Instantiate)
 	ex := exprs[e]
 	if ex.lbr <= off do return e
 	switch ex.kind {
@@ -383,13 +524,12 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 }
 
 // Replace fvar `fv` by bvar(off).
-abs_cache: map[Inst_Key]int
 
 abstract_fvar :: proc(e: int, fv: int, off: int = 0) -> int {
 	k := Inst_Key{e, fv, off}
-	if r, ok := abs_cache[k]; ok do return r
+	if r, ok := lc_get(&lc_abs, e, fv, off); ok do return r
 	r := abstract_fvar_raw(e, fv, off)
-	abs_cache[k] = r
+	lc_put(&lc_abs, e, fv, off, r)
 	return r
 }
 
@@ -408,18 +548,18 @@ abstract_fvar_raw :: proc(e: int, fv: int, off: int = 0) -> int {
 }
 
 Lvl_Key :: struct { e, ps, us: int }
-lvl_cache: map[Lvl_Key]int
 
 inst_expr_levels :: proc(e: int, ps: []int, us: []int) -> int {
 	if len(ps) == 0 do return e
 	k := Lvl_Key{e, us_id(ps), us_id(us)}
-	if r, ok := lvl_cache[k]; ok do return r
+	if r, ok := lc_get(&lc_lvl, e, k.ps, k.us); ok do return r
 	r := inst_expr_levels_raw(e, ps, us)
-	lvl_cache[k] = r
+	lc_put(&lc_lvl, e, k.ps, k.us, r)
 	return r
 }
 
 inst_expr_levels_raw :: proc(e: int, ps: []int, us: []int) -> int {
+	enter(.InstLevels)
 	ex := exprs[e]
 	switch ex.kind {
 	case .Sort: return mk_sort(level_inst(ex.a, ps, us))
@@ -444,6 +584,7 @@ fresh_fvar :: proc(name, ty: int) -> int {
 }
 
 get_app :: proc(e: int) -> (head: int, args: [dynamic]int) {
+	enter(.GetApp)
 	cur := e
 	for exprs[cur].kind == .App {
 		append(&args, exprs[cur].b)
@@ -471,7 +612,12 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 	case .Let: return fmt.aprintf("(let %s := %s; %s)", names[ex.a], expr_str(ex.c, depth + 1), expr_str(ex.d, depth + 1))
 	case .MData: return expr_str(ex.a, depth)
 	case .Proj: return fmt.aprintf("%s.%d", expr_str(ex.c, depth + 1), ex.b)
-	case .NatLit: return lit_strs[ex.a]
+	case .NatLit:
+		t: big.Int
+		defer big.int_destroy(&t)
+		nat_from_bytes(&t, lit_strs[ex.a])
+		str, _ := big.int_itoa_string(&t)
+		return str
 	case .StrLit: return fmt.aprintf("%q", lit_strs[ex.a])
 	case .Unsupported: return "<unsupported>"
 	}
@@ -480,15 +626,11 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 
 // ---------------------------------------------------------------- reduction
 
-whnf_core_cache: map[int]int
-whnf_cache: map[int]int
-infer_cache: map[int]int
-defeq_cache: map[[2]int]bool
 
 whnf_core :: proc(e: int) -> int {
-	if r, ok := whnf_core_cache[e]; ok do return r
+	if r, ok := lc_get(&lc_whnfc, e, 0, 0); ok do return r
 	r := whnf_core_raw(e)
-	if !aborted && !fuel_out do whnf_core_cache[e] = r
+	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, 0, 0, r)
 	return r
 }
 
@@ -516,6 +658,7 @@ budget_end :: proc(saved, inner: int) -> bool {
 	return false
 }
 whnf_core_raw :: proc(e: int) -> int {
+	enter(.WhnfCore)
 	fuel += 1
 	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
 	if fuel & 0xfff == 0 && len(exprs) - wm_exprs > 12_000_000 { fuel_out = true }
@@ -572,6 +715,7 @@ whnf_core_raw :: proc(e: int) -> int {
 
 // Unfold a definition at the head of e (one step). ok=false if impossible.
 unfold_head :: proc(e: int) -> (res: int, ok: bool) {
+	enter(.Unfold)
 	if trace_on { pc_unf += 1; if pc_unf % 100000 == 0 { fmt.eprintfln("P unf %d", pc_unf) } }
 	head, args := get_app(e)
 	defer delete(args)
@@ -597,13 +741,14 @@ head_height :: proc(e: int) -> int {
 
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
-	if r, ok := whnf_cache[e]; ok do return r
+	if r, ok := lc_get(&lc_whnf, e, 0, 0); ok do return r
 	r := whnf_raw(e)
-	if !aborted && !fuel_out do whnf_cache[e] = r
+	if !aborted && !fuel_out do lc_put(&lc_whnf, e, 0, 0, r)
 	return r
 }
 
 whnf_raw :: proc(e: int) -> int {
+	enter(.Whnf)
 	cur := whnf_core(e)
 	for {
 		if r, ok := reduce_nat(cur); ok do return r
@@ -627,24 +772,75 @@ find_name :: proc(s: string) -> (int, bool) {
 }
 
 mk_nat_lit :: proc(v: ^big.Int) -> int {
-	str, _ := big.int_itoa_string(v)
+	str := nat_to_bytes(v)
+	defer delete(str)
 	return add_expr(Expr{kind = .NatLit, a = intern_lit(str, false)})
 }
 
 lit_intern: map[string]int
+
+// literals are kept as hexadecimal text (linear-time conversion, unlike decimal)
+dec_to_hex :: proc(d: string) -> string {
+	v: big.Int
+	defer big.int_destroy(&v)
+	if err := big.int_atoi(&v, d); err != nil do return d
+	return nat_to_bytes(&v)
+}
+
+// linear-time load of big-endian bytes into a big.Int (60-bit digits)
+nat_from_bytes :: proc(v: ^big.Int, b: string) {
+	big.int_set_from_integer(v, 0)
+	n := len(b)
+	if n == 0 do return
+	nd := (n * 8 + 62) / 63
+	big.internal_grow(v, nd)
+	acc: u128 = 0
+	nb := uint(0)
+	d := 0
+	for i := n - 1; i >= 0; i -= 1 {
+		acc |= u128(b[i]) << nb
+		nb += 8
+		if nb >= 63 {
+			v.digit[d] = big.DIGIT(u64(acc) & ((1 << 63) - 1))
+			d += 1
+			acc >>= 63
+			nb -= 63
+		}
+	}
+	if nb > 0 || d < nd {
+		if d < nd { v.digit[d] = big.DIGIT(u64(acc)); d += 1 }
+	}
+	for k := d; k < nd; k += 1 do v.digit[k] = 0
+	v.used = nd
+	v.sign = .Zero_or_Positive
+	big.internal_clamp(v)
+}
+
+// canonical big-endian bytes without leading zeros (empty = 0)
+nat_to_bytes :: proc(v: ^big.Int) -> string {
+	bits, _ := big.count_bits(v)
+	n := (bits + 7) / 8
+	buf := make([]u8, n)
+	if n > 0 do big.int_to_bytes_big(v, buf)
+	return string(buf)
+}
+lit_intern_s: map[string]int
 intern_lit :: proc(s: string, is_str: bool) -> int {
-	key := fmt.tprintf("%c%s", is_str ? 's' : 'n', s)
-	if i, ok := lit_intern[key]; ok do return i
-	append(&lit_strs, strings.clone(s))
-	lit_intern[strings.clone(key)] = len(lit_strs) - 1
+	m := is_str ? &lit_intern_s : &lit_intern
+	if i, ok := m[s]; ok do return i
+	c := strings.clone(s)
+	append(&lit_strs, c)
+	m[c] = len(lit_strs) - 1
 	return len(lit_strs) - 1
 }
 
 // value of a literal (or Nat.zero) as a big integer
 nat_value :: proc(e: int) -> (v: big.Int, ok: bool) {
+	t0 := time.tick_now()
+	defer { t_nv += time.tick_diff(t0, time.tick_now()); n_nv += 1 }
 	ex := exprs[e]
 	if ex.kind == .NatLit {
-		if err := big.int_atoi(&v, lit_strs[ex.a]); err != nil do return v, false
+		nat_from_bytes(&v, lit_strs[ex.a])
 		return v, true
 	}
 	if ex.kind == .Const {
@@ -670,7 +866,7 @@ is_nat_form :: proc(e: int) -> bool {
 }
 
 nat_is_zero :: proc(e: int) -> bool {
-	if exprs[e].kind == .NatLit do return lit_strs[exprs[e].a] == "0"
+	if exprs[e].kind == .NatLit do return len(lit_strs[exprs[e].a]) == 0
 	return exprs[e].kind == .Const
 }
 
@@ -724,6 +920,7 @@ nat_lit_to_ctor :: proc(e: int) -> int {
 
 // GMP-style shortcuts for Nat.succ and the binary Nat operations on literals.
 reduce_nat :: proc(e: int) -> (res: int, ok: bool) {
+	enter(.ReduceNat)
 	if fuel_out do return 0, false
 	if trace_on { pc_rn += 1; if pc_rn % 3000 == 0 { fmt.eprintfln("P rn %d", pc_rn) } }
 	h, args := get_app(e)
@@ -751,6 +948,7 @@ reduce_nat :: proc(e: int) -> (res: int, ok: bool) {
 		binary = true
 	}
 	if !(binary && len(args) == 2) && !(unary && len(args) == 1) do return e, false
+	t0 := time.tick_now()
 	a, ok1 := nat_value(whnf(args[0]))
 	defer big.int_destroy(&a)
 	if !ok1 do return e, false
@@ -763,6 +961,9 @@ reduce_nat :: proc(e: int) -> (res: int, ok: bool) {
 	}
 	r: big.Int
 	defer big.int_destroy(&r)
+	t1 := time.tick_now()
+	t2 := t1
+	defer { t_args += time.tick_diff(t0, t1); t_op += time.tick_diff(t1, t2); t_mk += time.tick_diff(t2, time.tick_now()); op_n[op] = op_n[op] + 1; op_t[op] = op_t[op] + time.tick_diff(t1, t2) }
 	bzero, _ := big.int_is_zero(&b)
 	switch op {
 	case "add": big.int_add(&r, &a, &b)
@@ -806,6 +1007,7 @@ reduce_nat :: proc(e: int) -> (res: int, ok: bool) {
 		return mk_const(truth ? tn : fn, nil), true
 	case: return e, false
 	}
+	t2 = time.tick_now()
 	return mk_nat_lit(&r), true
 }
 
@@ -855,6 +1057,7 @@ expand_struct :: proc(major: int) -> int {
 }
 
 try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
+	enter(.Iota)
 	rx := exprs[rec_const]
 	d, found := env[rx.a]
 	if !found || d.kind != .Rec || len(d.lparams) != len(rx.us) do return 0, false
@@ -911,13 +1114,14 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 
 infer :: proc(e: int) -> (res: int, ok: bool) {
 	if trace_on { pc_inf += 1; if pc_inf % 100000 == 0 { fmt.eprintfln("P inf %d", pc_inf) } }
-	if r, hit := infer_cache[e]; hit do return r, true
+	if r, hit := lc_get(&lc_infer, e, 0, 0); hit do return r, true
 	res, ok = infer_raw(e)
-	if ok && !aborted && !fuel_out do infer_cache[e] = res
+	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, 0, 0, res)
 	return
 }
 
 infer_raw :: proc(e: int) -> (res: int, ok: bool) {
+	enter(.Infer)
 	if e < 0 || e >= len(exprs) do return 0, fail("reference to undefined expression %d", e)
 	ex := exprs[e]
 	switch ex.kind {
@@ -1048,9 +1252,9 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if trace_on { pc_de += 1; if pc_de % 3000 == 0 { fmt.eprintfln("P de %d", pc_de) } }
 	if a0 == b0 do return true
 	k := [2]int{min(a0, b0), max(a0, b0)}
-	if r, ok := defeq_cache[k]; ok do return r
+	if r, ok := lc_get(&lc_defeq, k[0], k[1], 0); ok do return r != 0
 	r := def_eq_raw(a0, b0)
-	if !aborted && !fuel_out do defeq_cache[k] = r
+	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0)
 	return r
 }
 
@@ -1059,6 +1263,7 @@ trace_n: int
 trace_depth: int
 
 def_eq_raw :: proc(a0, b0: int) -> bool {
+	enter(.DefEq)
 	fuel += 1
 	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
 	if fuel_out || aborted do return false
@@ -1075,7 +1280,7 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 			switch x.kind {
 			case .App: if x.a != y.a { dd(x.a, y.a, fmt.tprintf("%s%s", p, "f")) }; if x.b != y.b { dd(x.b, y.b, fmt.tprintf("%s%s", p, "a")) }
 			case .Lam, .Pi: if x.b != y.b { dd(x.b, y.b, fmt.tprintf("%s%s", p, "t")) }; if x.c != y.c { dd(x.c, y.c, fmt.tprintf("%s%s", p, "b")) }
-			case .NatLit: fmt.eprintfln("  DIFF lit %s %s", lit_strs[x.a], lit_strs[y.a])
+			case .NatLit: fmt.eprintfln("  DIFF lit %s %s", "?", "?")
 			case .Const: fmt.eprintfln("  DIFF const %s %s us %v %v", names[x.a], names[y.a], x.us, y.us)
 			case .BVar, .FVar, .Sort, .StrLit, .Let, .MData, .Proj, .Unsupported: fmt.eprintfln("  DIFF other %v %s | %s", x.kind, expr_str(a, 3), expr_str(b, 3))
 			}
@@ -1116,8 +1321,8 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 		failure = saved
 	}
 	// literals
-	if ea.kind == .NatLit && eb.kind == .NatLit do return lit_strs[ea.a] == lit_strs[eb.a]
-	if ea.kind == .StrLit && eb.kind == .StrLit do return lit_strs[ea.a] == lit_strs[eb.a]
+	if ea.kind == .NatLit && eb.kind == .NatLit do return ea.a == eb.a
+	if ea.kind == .StrLit && eb.kind == .StrLit do return ea.a == eb.a
 	if is_nat_form(a) && is_nat_form(b) {
 		za, zb := nat_is_zero(a), nat_is_zero(b)
 		if za || zb do return za && zb
@@ -1772,25 +1977,20 @@ wm_exprs, wm_levels, wm_fv: int
 // Drop everything the kernel created while checking declarations (ids above the watermark set
 // after loading the export), together with all caches that may refer to it.
 purge :: proc() {
-	for i in wm_exprs ..< len(exprs) do delete_key(&expr_hc, expr_key(exprs[i]))
+	if os.get_env("PROF", context.allocator) != "" && len(exprs) - wm_exprs > 1000000 { fmt.eprintfln("PROF new exprs %d calls %d", len(exprs) - wm_exprs, add_calls) }
+	hc_truncate(wm_exprs)
 	resize(&exprs, wm_exprs)
 	for i in wm_levels ..< len(levels) do delete_key(&level_hc, levels[i])
 	resize(&levels, wm_levels)
 	resize(&fv_type, wm_fv)
 	resize(&fv_name, wm_fv)
-	delete(inst_cache); inst_cache = nil
-	delete(abs_cache); abs_cache = nil
-	delete(lvl_cache); lvl_cache = nil
-	delete(infer_cache); infer_cache = nil
-	delete(whnf_cache); whnf_cache = nil
-	delete(whnf_core_cache); whnf_core_cache = nil
-	delete(defeq_cache); defeq_cache = nil
+	cache_gen += 1
 	delete(canon_memo); canon_memo = nil
 	delete(sem_memo); sem_memo = nil
 }
 
 clear_caches :: proc() {
-	clear(&infer_cache); clear(&whnf_cache); clear(&whnf_core_cache); clear(&defeq_cache)
+	cache_gen += 1
 }
 
 // Eliminate nested occurrences (as Lean's kernel does), check the resulting mutual block and
@@ -2108,6 +2308,7 @@ main :: proc() {
 	env = make(map[int]Decl)
 
 	n_ok, n_fail, n_skip := 0, 0, 0
+	if os.get_env("PROF", context.allocator) != "" do prof_start()
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
 	// ids used by the export are never mixed with nodes the kernel creates while checking
 	decl_lines := make([dynamic]string)
@@ -2182,7 +2383,7 @@ main :: proc() {
 				e = Expr{kind = .Let, a = jint(nm), b = jint(ty), c = jint(vl), d = jint(bd)}
 				e.lbr = max(exprs[e.b].lbr, exprs[e.c].lbr, exprs[e.d].lbr - 1)
 			} else if x, ok2 := jobj(v, "natVal"); ok2 {
-				e = Expr{kind = .NatLit, a = intern_lit(x.(json.String), false)}
+				e = Expr{kind = .NatLit, a = intern_lit(dec_to_hex(x.(json.String)), false)}
 			} else if x, ok2 := jobj(v, "strVal"); ok2 {
 				e = Expr{kind = .StrLit, a = intern_lit(x.(json.String), true)}
 			} else if x, ok2 := jobj(v, "proj"); ok2 {
@@ -2314,6 +2515,9 @@ main :: proc() {
 	}
 	}
 	fmt.printf("\n%d accepted, %d rejected, %d skipped\n", n_ok, n_fail, n_skip)
+	if os.get_env("PROF", context.allocator) != "" {
+		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
+	}
 	if n_fail > 0 do os.exit(1)
 }
 
