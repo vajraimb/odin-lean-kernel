@@ -2,10 +2,10 @@
  {
   "name": "good/bugs/nat-shift-huge.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 44.04,
-  "fail": "FAIL  natShiftRightHuge: resource limit exceeded (fuel)"
+  "rc": 0,
+  "got": "accept",
+  "t": 0.05,
+  "fail": ""
  },
  {
   "name": "good/bugs/str-lit-utf8.ndjson",
@@ -44,7 +44,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -76,7 +76,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 60.07,
+  "t": 70.07,
   "fail": ""
  },
  {
@@ -84,7 +84,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.4,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -92,7 +92,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 59.66,
+  "t": 18.8,
   "fail": ""
  },
  {
@@ -100,7 +100,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.08,
+  "t": 0.06,
   "fail": ""
  },
  {
@@ -140,7 +140,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.38,
+  "t": 0.34,
   "fail": ""
  },
  {
@@ -148,7 +148,7 @@
   "exp": "good",
   "rc": "timeout",
   "got": "timeout",
-  "t": 60.07,
+  "t": 70.07,
   "fail": ""
  },
  {
@@ -156,7 +156,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 8.98,
+  "t": 8.25,
   "fail": ""
  },
  {
@@ -186,9 +186,9 @@
  {
   "name": "good/perf/ite-taken-branch.ndjson",
   "exp": "good",
-  "rc": "timeout",
-  "got": "timeout",
-  "t": 60.02,
+  "rc": 0,
+  "got": "accept",
+  "t": 4.23,
   "fail": ""
  },
  {
@@ -196,7 +196,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 9.24,
+  "t": 6.22,
   "fail": ""
  },
  {
@@ -204,7 +204,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 10.85,
+  "t": 7.87,
   "fail": ""
  },
  {
@@ -212,7 +212,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 1.47,
+  "t": 0.91,
   "fail": ""
  },
  {
@@ -220,7 +220,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 13.56,
+  "t": 9.74,
   "fail": ""
  },
  {
@@ -228,7 +228,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 20.05,
+  "t": 20.55,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -236,7 +236,7 @@
   "exp": "good",
   "rc": 1,
   "got": "reject",
-  "t": 21.82,
+  "t": 23.68,
   "fail": "FAIL  countermodel: resource limit exceeded (fuel)"
  },
  {
@@ -244,7 +244,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 19.35,
+  "t": 20.22,
   "fail": ""
  },
  {
@@ -274,10 +274,10 @@
  {
   "name": "good/perf/proj-lazy-struct.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 19.8,
-  "fail": "FAIL  proj_lazy_struct: resource limit exceeded (fuel)"
+  "rc": 0,
+  "got": "accept",
+  "t": 0.08,
+  "fail": ""
  },
  {
   "name": "good/perf/proj-stuck-struct.ndjson",
@@ -292,7 +292,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.84,
+  "t": 0.91,
   "fail": ""
  },
  {
@@ -322,17 +322,17 @@
  {
   "name": "good/perf/short-circuit-and.ndjson",
   "exp": "good",
-  "rc": 1,
-  "got": "reject",
-  "t": 47.55,
-  "fail": "FAIL  short_circuit_and_1: resource limit exceeded (fuel)"
+  "rc": 0,
+  "got": "accept",
+  "t": 1.68,
+  "fail": ""
  },
  {
   "name": "good/perf/unfold-before-literal-fallback.ndjson",
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 48.22,
+  "t": 134.42,
   "fail": ""
  },
  {
@@ -340,7 +340,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 47.8,
+  "t": 131.46,
   "fail": ""
  },
  {
@@ -364,7 +364,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -572,7 +572,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -620,7 +620,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -700,7 +700,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -732,7 +732,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -764,7 +764,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.0,
+  "t": 0.01,
   "fail": ""
  },
  {
@@ -964,7 +964,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1004,7 +1004,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1052,7 +1052,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1060,7 +1060,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1068,7 +1068,7 @@
   "exp": "good",
   "rc": 0,
   "got": "accept",
-  "t": 0.01,
+  "t": 0.0,
   "fail": ""
  },
  {
@@ -1268,7 +1268,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.05,
+  "t": 0.04,
   "fail": "FAIL  inductive Native64ResultSortOwner: type expected: ((Native64ResultSortOwner x) h)"
  },
  {
@@ -1300,7 +1300,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.04,
+  "t": 0.05,
   "fail": "FAIL  inductive Native64TwoHashOwner: invalid (nested?) occurrence of the inductive type in (((((((\u2026 \u2026) Native64TwoHashOwner) (Native64TwoHashB.0.2525080234 (\u2026 "
  },
  {
@@ -1316,7 +1316,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive N: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (motive_2 ((((And.intro N) N) left) right))"
  },
  {
@@ -1340,7 +1340,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive Q: argument type mismatch: (Box.mk Bool.true) : (Box Bool.true), expected (Box Bool.false)"
  },
  {
@@ -1348,7 +1348,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.11,
+  "t": 0.1,
   "fail": "FAIL  strLitUtf8Bad: value has type (((Eq String) \"\u00e9\") \"\u00e9\"), expected (((Eq String) \"\u00e9\") (String.ofList (((List.cons Char) (Char.ofNat ((\u2026 \u2026) (\u2026 \u2026)))) (((List.c"
  },
  {
@@ -1364,7 +1364,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  inductive False: wrong number of recursors"
  },
  {
@@ -1396,7 +1396,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  badFalse: argument type mismatch: True.intro : True, expected False"
  },
  {
@@ -1404,7 +1404,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 22.37,
+  "t": 22.63,
   "fail": "FAIL  ite_taken_branch_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1412,7 +1412,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 1.16,
+  "t": 1.03,
   "fail": "FAIL  loop_unfolded_once_bad: value has type (w : Nat) -> (g : (a._@._internal._hyg.0 : Nat) -> (x._@.Init.Prelude.1907163184._hygCtx._hyg.10 : Nat) -> Bool) ->"
  },
  {
@@ -1420,7 +1420,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 45.23,
+  "t": 49.01,
   "fail": "FAIL  proj_applied_struct_arg_bad_1: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) ((S.fn (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026)))) ((S.fn ((\u2026 \u2026) #1)) (((\u2026 \u2026) #0) ((\u2026 \u2026) (\u2026 "
  },
  {
@@ -1428,7 +1428,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.4,
+  "t": 18.35,
   "fail": "FAIL  proj_applied_struct_bad: value has type (c : Nat) -> (x : Nat) -> (((Eq Nat) (((\u2026 \u2026) #0) #1)) ((((\u2026 \u2026) (\u2026 \u2026)) #0) #1)), expected (c : Nat) -> (x : Nat) ->"
  },
  {
@@ -1452,7 +1452,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 19.79,
+  "t": 19.22,
   "fail": "FAIL  short_circuit_and_bad: resource limit exceeded (fuel)"
  },
  {
@@ -1460,7 +1460,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 18.0,
+  "t": 46.31,
   "fail": "FAIL  unfold_before_literal_bad: value has type (((Eq Nat) (((((\u2026 \u2026) Nat) ((\u2026 \u2026) instAddNat)) slowA) ((((\u2026 \u2026) (\u2026 \u2026)) ((\u2026 \u2026) (\u2026 \u2026))) (((\u2026 \u2026) 0) (instOfNatNat 0))"
  },
  {
@@ -1492,7 +1492,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  nonTypeAxiom: type expected: constType"
  },
  {
@@ -1580,7 +1580,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  inductive inductInIndex: index mentions the inductive type"
  },
  {
@@ -1644,7 +1644,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.01,
+  "t": 0.0,
   "fail": "FAIL  projProp2: invalid projection: cannot project a non-proof field of a Prop structure"
  },
  {
@@ -1724,7 +1724,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  indexedStructEta: value has type (a : (IndexedSingleton Bool.true)) -> (((Eq (IndexedSingleton Bool.true)) #0) #0), expected (x : (IndexedSingleton Bool.t"
  },
  {
@@ -1788,7 +1788,7 @@
   "exp": "bad",
   "rc": 1,
   "got": "reject",
-  "t": 0.0,
+  "t": 0.01,
   "fail": "FAIL  inductive dup_rec_def: duplicate declaration dup_rec_def.rec"
  },
  {

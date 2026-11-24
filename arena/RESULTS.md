@@ -56,3 +56,11 @@ Test suite: lean-arena-tests.tar.gz (138 good, 92 bad). Run: `cd <extracted dir>
 
 - 根因：hints 为 opaque 的定义被当成不可展开，导致 beta 后类型比较和构造子参数归约失败
 - good: 接受 125 -> 130，拒绝 10 -> 5（全是 fuel 耗尽），超时 3；bad: 92/92 拒绝
+
+## 更新：预算化的惰性展开策略
+
+- 同头比较：先在小预算内比较参数，超出预算则放弃并展开；高度不同时，先展开较高一侧，预算耗尽后换成展开较低一侧，预算逐轮放大 4 倍
+- 修复巨大移位量的 Nat 字面量归约（shiftRight 与 shiftLeft 0）
+- 每个声明开始时重置预算状态；运行器改用各测试 yaml 里的超时（上限 150 秒）
+- good: 接受 134 / 138；bad: 92 / 92 拒绝
+- 剩余：magma-list-deep-n36 与 magma-list-pair-n21 因表达式节点数超过内存上限被拒，app-lam 与 gf3-matrix-product 超时（常数因子问题）

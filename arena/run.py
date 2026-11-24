@@ -1,12 +1,19 @@
 import subprocess,os,sys,time,resource,json,glob
 K=sys.argv[1]; T=int(sys.argv[2]) if len(sys.argv)>2 else 120
+import re
 res=[]
+def tmo(f):
+    base=os.path.basename(f)[:-7]
+    for y in glob.glob(f"/tmp/lka/tests/**/{base}.yaml",recursive=True):
+        m=re.search(r"^timeout:\s*(\d+)",open(y).read(),re.M)
+        if m: return min(int(m.group(1)),T)
+    return T
 for exp in ("good","bad"):
     for f in sorted(glob.glob(f"{exp}/**/*.ndjson", recursive=True)):
         t=time.time()
         r0=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
         try:
-            p=subprocess.run(f"ulimit -s unlimited; ulimit -v 7000000; {K} {f}",shell=True,capture_output=True,timeout=T,text=True)
+            p=subprocess.run(f"ulimit -s unlimited; ulimit -v 7000000; {K} {f}",shell=True,capture_output=True,timeout=tmo(f),text=True)
             rc=p.returncode; out=p.stdout
         except subprocess.TimeoutExpired:
             rc="timeout"; out=""

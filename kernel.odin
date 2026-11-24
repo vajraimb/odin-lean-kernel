@@ -137,6 +137,7 @@ level_leq :: proc(a, b: int) -> bool {
 sem_memo: map[[3]int]bool
 sem_n: int
 nosem: string
+nopf: string
 
 level_eval :: proc(l: int, ps: []int, vs: []int) -> int {
 	lv := levels[l]
@@ -487,18 +488,38 @@ defeq_cache: map[[2]int]bool
 whnf_core :: proc(e: int) -> int {
 	if r, ok := whnf_core_cache[e]; ok do return r
 	r := whnf_core_raw(e)
-	whnf_core_cache[e] = r
+	if !aborted && !fuel_out do whnf_core_cache[e] = r
 	return r
 }
 
 wc_n: int
 fuel: int
 fuel_out: bool
-FUEL_LIMIT :: 5_000_000
+FUEL_LIMIT :: 30_000_000
+BUDGET0 :: 20_000
+eff_limit: int = FUEL_LIMIT // current fuel cap; below FUEL_LIMIT while a budgeted strategy runs
+aborted: bool              // a budgeted strategy ran out of its budget
+
+budget_begin :: proc(budget: int) -> (saved, inner: int) {
+	saved = eff_limit
+	inner = min(saved, fuel + budget)
+	eff_limit = inner
+	return
+}
+// true if this strategy's own budget ran out (caches are dropped, the flag is reset)
+budget_end :: proc(saved, inner: int) -> bool {
+	eff_limit = saved
+	if aborted && inner < saved {
+		aborted = false
+		return true
+	}
+	return false
+}
 whnf_core_raw :: proc(e: int) -> int {
 	fuel += 1
-	if fuel > FUEL_LIMIT || (fuel & 0xfff == 0 && len(exprs) - wm_exprs > 12_000_000) { fuel_out = true }
-	if fuel_out do return e
+	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
+	if fuel & 0xfff == 0 && len(exprs) - wm_exprs > 12_000_000 { fuel_out = true }
+	if fuel_out || aborted do return e
 	if trace_on { wc_n += 1; if wc_n % 100000 == 0 { fmt.eprintfln("wc %d %s", wc_n, expr_str(e, 6)) } }
 	cur := e
 	for {
@@ -578,7 +599,7 @@ whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
 	if r, ok := whnf_cache[e]; ok do return r
 	r := whnf_raw(e)
-	whnf_cache[e] = r
+	if !aborted && !fuel_out do whnf_cache[e] = r
 	return r
 }
 
@@ -758,10 +779,18 @@ reduce_nat :: proc(e: int) -> (res: int, ok: bool) {
 	case "xor": big.int_bit_xor(&r, &a, &b)
 	case "shiftLeft", "shiftRight", "pow":
 		sh, err := big.int_get_i64(&b)
-		if err != nil || sh < 0 || sh > 1 << 24 do return e, false
+		if err != nil || sh < 0 || sh > 1 << 24 {
+			// huge shift count: only the trivial results are computed
+			a_zero, _ := big.int_is_zero(&a)
+			bits, _ := big.count_bits(&a)
+			if op == "shiftRight" && bits <= 1 << 24 { big.int_set_from_integer(&r, 0) }
+			else if op == "shiftLeft" && a_zero { big.int_set_from_integer(&r, 0) }
+			else do return e, false
+		} else {
 		if op == "shiftLeft" { big.int_shl(&r, &a, int(sh)) }
 		else if op == "shiftRight" { big.int_shr(&r, &a, int(sh)) }
 		else { big.int_pow(&r, &a, int(sh)) }
+		}
 	case "log2":
 		if z, _ := big.int_is_zero(&a); z { big.int_set_from_integer(&r, 0) }
 		else {
@@ -884,7 +913,7 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 	if trace_on { pc_inf += 1; if pc_inf % 100000 == 0 { fmt.eprintfln("P inf %d", pc_inf) } }
 	if r, hit := infer_cache[e]; hit do return r, true
 	res, ok = infer_raw(e)
-	if ok do infer_cache[e] = res
+	if ok && !aborted && !fuel_out do infer_cache[e] = res
 	return
 }
 
@@ -1021,7 +1050,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 	k := [2]int{min(a0, b0), max(a0, b0)}
 	if r, ok := defeq_cache[k]; ok do return r
 	r := def_eq_raw(a0, b0)
-	defeq_cache[k] = r
+	if !aborted && !fuel_out do defeq_cache[k] = r
 	return r
 }
 
@@ -1031,8 +1060,8 @@ trace_depth: int
 
 def_eq_raw :: proc(a0, b0: int) -> bool {
 	fuel += 1
-	if fuel > FUEL_LIMIT { fuel_out = true }
-	if fuel_out do return false
+	if fuel > eff_limit { if eff_limit >= FUEL_LIMIT { fuel_out = true } else { aborted = true } }
+	if fuel_out || aborted do return false
 	if trace_on {
 		trace_n += 1
 		if trace_n > 4000000 do os.exit(3)
@@ -1113,7 +1142,34 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 			   len(exprs[h1].us) == len(exprs[h2].us) {
 				lv_ok := true
 				for i in 0 ..< len(exprs[h1].us) do if !level_equiv(exprs[h1].us[i], exprs[h2].us[i]) do lv_ok = false
-				if lv_ok && args_eq(a1, a2) do return true
+				if lv_ok {
+					sv, ic := budget_begin(BUDGET0)
+					r := args_eq(a1, a2)
+					ab := budget_end(sv, ic)
+					if fuel_out || aborted do return false
+					if !ab && r do return true
+				}
+			}
+		}
+		if ha >= 0 && hb >= 0 && ha != hb && nopf != "1" {
+			// portfolio: unfold the higher side first, and if that gets expensive the lower one, with growing budgets
+			budget := BUDGET0
+			for {
+				na, nb := a, b
+				if r, ok := unfold_head(ha > hb ? a : b); ok { if ha > hb { na = r } else { nb = r } }
+				sv, ic := budget_begin(budget)
+				r1 := def_eq(na, nb)
+				ab := budget_end(sv, ic)
+				if fuel_out || aborted do return false
+				if !ab do return r1
+				na, nb = a, b
+				if r, ok := unfold_head(ha > hb ? b : a); ok { if ha > hb { nb = r } else { na = r } }
+				sv, ic = budget_begin(budget)
+				r2 := def_eq(na, nb)
+				ab = budget_end(sv, ic)
+				if fuel_out || aborted do return false
+				if !ab do return r2
+				budget *= 4
 			}
 		}
 		na, nb := a, b
@@ -2046,6 +2102,7 @@ main :: proc() {
 		os.exit(2)
 	}
 	nosem = os.get_env("NOSEM", context.allocator)
+	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
 	append(&levels, Level{.Zero, 0, 0})          // level 0 = zero
 	env = make(map[int]Decl)
@@ -2183,7 +2240,7 @@ main :: proc() {
 			name = jint(nm); d = Decl{kind = .Opaque, lparams = jints(lp), type = jint(ty), value = jint(vl), height = -1}; found = true
 		}
 		if x, ok := jobj(v, "quot"); ok {
-			failure = nil
+			failure = nil; fuel = 0; fuel_out = false; aborted = false; eff_limit = FUEL_LIMIT
 			nm := jint(jget(x, "name"))
 			kind := jget(x, "kind").(json.String)
 			qk := kind == "type" ? 0 : kind == "ctor" ? 1 : kind == "lift" ? 2 : 3
@@ -2215,7 +2272,7 @@ main :: proc() {
 			continue
 		}
 		if x, ok := jobj(v, "inductive"); ok {
-			failure = nil
+			failure = nil; fuel = 0; fuel_out = false; aborted = false; eff_limit = FUEL_LIMIT
 			first, good := check_inductive(x)
 			if good {
 				fmt.printf("OK    inductive %s (%d type(s), %d ctor(s), %d recursor(s))\n", names[first],
@@ -2238,7 +2295,7 @@ main :: proc() {
 		failure = nil
 		decl_start_exprs = len(exprs)
 		dup_decl := name in env
-		fuel = 0; fuel_out = false
+		fuel = 0; fuel_out = false; aborted = false; eff_limit = FUEL_LIMIT
 		if len(os.args) > 2 do fmt.eprintfln("checking %s", names[name])
 		trace_on = len(os.args) > 3 && os.args[3] == names[name]
 		ok_decl := !dup_decl && check_decl(d)
