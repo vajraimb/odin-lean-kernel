@@ -507,6 +507,7 @@ gc_map: [dynamic]int
 gc_stack: [dynamic]int
 gc_runs, gc_freed: int
 gc_region :: proc(wm: int, keep: int) -> int {
+	app_gen += 1
 	n := len(exprs) - wm
 	resize(&gc_map, n)
 	for i in 0 ..< n do gc_map[i] = 0
@@ -560,8 +561,29 @@ mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr =
 mk_fvar :: proc(i: int) -> int { return add_expr(Expr{kind = .FVar, a = i}) }
 mk_sort :: proc(l: int) -> int { return add_expr(Expr{kind = .Sort, a = l}) }
 mk_const :: proc(n: int, us: []int) -> int { return add_expr(Expr{kind = .Const, a = n, us = us}) }
+
+// Lossy direct map in front of hash-consing. Chains in the main table are already
+// length ~1, so the win is skipping the hash on an application we just built.
+// `app_gen` bumps whenever expression ids are dropped or slid, which invalidates
+// every slot without walking the table.
+APP_BITS :: 18
+AppHit :: struct { f, x, r: int, gen: u32 }
+app_tab: []AppHit
+app_gen: u32 = 1
+app_hits, app_miss: int
+
 mk_app :: proc(f, x: int) -> int {
-	return add_expr(Expr{kind = .App, a = f, b = x, lbr = max(exprs[f].lbr, exprs[x].lbr)})
+	if app_tab == nil do app_tab = make([]AppHit, 1 << APP_BITS)
+	h := (u64(f) * 0x9E3779B97F4A7C15) ~ (u64(x) * 0xC2B2AE3D27D4EB4F)
+	slot := &app_tab[int(h) & ((1 << APP_BITS) - 1)]
+	if slot.gen == app_gen && slot.f == f && slot.x == x {
+		if prof_on do app_hits += 1
+		return slot.r
+	}
+	id := add_expr(Expr{kind = .App, a = f, b = x, lbr = max(exprs[f].lbr, exprs[x].lbr)})
+	slot.f, slot.x, slot.r, slot.gen = f, x, id, app_gen
+	if prof_on do app_miss += 1
+	return id
 }
 mk_binder :: proc(k: Expr_Kind, name, ty, body: int) -> int {
 	return add_expr(Expr{kind = k, a = name, b = ty, c = body, lbr = max(exprs[ty].lbr, exprs[body].lbr - 1)})
@@ -2534,6 +2556,7 @@ wm_exprs, wm_levels, wm_fv: int
 // Drop everything the kernel created while checking declarations (ids above the watermark set
 // after loading the export), together with all caches that may refer to it.
 purge :: proc() {
+	app_gen += 1
 	if os.get_env("PROF", context.allocator) != "" && len(exprs) - wm_exprs > 1000000 {
 		kc: [32]int
 		for i in wm_exprs..<len(exprs) do kc[int(exprs[i].kind)] += 1
@@ -3089,6 +3112,7 @@ main :: proc() {
 	if os.get_env("PROF", context.allocator) != "" {
 		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
 		fmt.eprintfln("STALE %d gc %d", lc_stale, gc_runs)
+		fmt.eprintfln("APP hits %d miss %d", app_hits, app_miss)
 	}
 	if n_fail > 0 do os.exit(1)
 }
