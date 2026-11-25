@@ -1170,6 +1170,27 @@ body_exceeds :: proc(root, budget: int) -> bool {
 only_decl: string // debugging aid (ONLY=name): trust every other declaration
 whnf_core_raw :: proc(e: int) -> int { return use_lazy ? whnf_core_lazy(e) : whnf_core_eager(e) }
 
+// One whnf walk may unfold a Nat fuel wrapper (div.go._f, shiftRight._f, …)
+// this many times. Eight covers a successor equation. A character-sized fuel
+// loop does not.
+NAT_UNFOLD_CAP :: 8
+// The same unfolds, shared by one top-level def_eq and the recursive calls it makes.
+NAT_DEFEQ_UNFOLD_CAP :: 32
+nat_unfolds: int
+def_eq_depth: int
+
+// Only the well-founded fuel wrappers. Their recursion follows an open
+// argument one successor at a time. The surface functions (Nat.div, Nat.beq,
+// …) stay uncapped: proofs unfold those definitions a few times and compare.
+nat_unfold_capped :: proc(nm: string) -> bool {
+	switch nm {
+	case "Nat.div.go._f", "Nat.mod.go._f", "Nat.gcd.go._f",
+	     "Nat.shiftRight._f", "Nat.shiftLeft._f":
+		return true
+	}
+	return false
+}
+
 // Unfold a definition at the head of e (one step). ok=false if impossible.
 unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	enter(.Unfold)
@@ -1182,6 +1203,14 @@ unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	if !found || d.kind != .Def || d.height < 0 do return e, false
 	if len(d.lparams) != len(hx.us) do return e, false
 	if prof_on do hist[names[hx.a]] += 1
+	// Closed arithmetic is a finite computation (GMP, once both sides are
+	// literals). The expression-cap blowup is an open argument — a bvar or a
+	// free variable — walked one successor at a time.
+	if nat_unfold_capped(names[hx.a]) && (exprs[e].lbr > 0 || exprs[e].hasfv) {
+		if r, ok2 := reduce_nat(e); ok2 do return r, true
+		if nat_unfolds >= NAT_DEFEQ_UNFOLD_CAP do return e, false
+		nat_unfolds += 1
+	}
 	r := inst_expr_levels(d.value, d.lparams, hx.us)
 	for a in args do r = mk_app(r, a)
 	return whnf_core(r), true
@@ -1213,12 +1242,26 @@ whnf :: proc(e: int) -> int {
 whnf_raw :: proc(e: int) -> int {
 	enter(.Whnf)
 	cur := whnf_core(e)
+	// One weak-head walk may unfold an open Nat fuel wrapper only a few times.
+	// The wrapper follows a character code one successor at a time and otherwise
+	// allocates until the expression cap. The next walk starts over.
+	capped := 0
 	for {
 		if r, ok := reduce_nat(cur); ok do return r
+		if capped >= NAT_UNFOLD_CAP && nat_head_capped(cur) do return cur
 		nxt, ok := unfold_head(cur)
 		if !ok do return cur
+		if nat_head_capped(cur) do capped += 1
 		cur = nxt
 	}
+}
+
+nat_head_capped :: proc(e: int) -> bool {
+	h, args := get_app(e)
+	defer delete(args)
+	if exprs[h].kind != .Const do return false
+	if exprs[e].lbr == 0 && !exprs[e].hasfv do return false
+	return nat_unfold_capped(names[exprs[h].a])
 }
 
 // ---------------------------------------------------------------- Nat literals and Quot
@@ -1816,6 +1859,9 @@ try_eta_struct :: proc(a, b: int) -> bool {
 }
 
 def_eq :: proc(a0, b0: int) -> bool {
+	if def_eq_depth == 0 do nat_unfolds = 0
+	def_eq_depth += 1
+	defer def_eq_depth -= 1
 	if trace_on { pc_de += 1; if pc_de % 3000 == 0 { fmt.eprintfln("P de %d", pc_de) } }
 	if a0 == b0 do return true
 	k := [2]int{min(a0, b0), max(a0, b0)}
