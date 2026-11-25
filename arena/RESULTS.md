@@ -272,3 +272,17 @@ deep-n21 两组区间不相交（main 最快 2.834，本轮最慢 2.707）。dee
 正确性：`python3 arena/run.py ./kernel 400`。good 138/138 接受，bad 92/92 拒绝。
 
 未做：闭包机返回中性项时仍会强制参数。deep-n36 里大约 19 万次 `Nat.casesOn` 和 `List.get` 展开还在。完整 Init 导出不在这个环境里，没有测。
+
+## 更新：完整 Init 58547 / 0
+
+上一版 main（`650f2e6`，同一份 Lean 4.36.0 / lean4export 3.1.0 导出）在这台机器上：rc 1，58532 通过、15 拒绝，wall 126.565 s，用户态 121.895 s，系统态 4.404 s，峰值 RSS 3750812 KB。唯一的根拒绝是 `_private.Init.Data.String.Lemmas.Decode.0.String.utf8EncodeChar_lt_utf8EncodeChar_of_utf8Size_lt`，其余 14 个是未知常量连带失败。报的是资源上限，撞上的是单声明 2000 万新表达式的上限：`Char.val` 是松 de Bruijn 变量，不是 Nat 字面量，`Nat.div.go._f` 和 `Nat.shiftRight._f` 按后继一步步展开这个字符码。
+
+这一轮只限制五个良基燃料包装：`Nat.div.go._f`、`Nat.mod.go._f`、`Nat.gcd.go._f`、`Nat.shiftRight._f`、`Nat.shiftLeft._f`。项里没有松 de Bruijn 变量、也没有自由变量时不限制，闭项算术仍走原来的 GMP。一次 whnf 最多展开这些包装 8 次；同一次顶层 `def_eq`（含它的递归调用）共享 32 次，进入顶层 `def_eq` 时把计数清零。`Nat.div`、`Nat.beq` 这些表层定义不限制。把它们也算进上限时，`Int.fdiv_eq_ediv` 和 Grind 里的 `BEq.beq` 会在展开到一半时停住，并且这个半截结果会被 whnf 缓存。
+
+| 项目 | 上一版 main | 本轮 |
+|---|---|---|
+| 完整 Init | 58532 / 15，wall 126.565 s，峰值 3750812 KB | 58547 / 0，wall 103.979 s，用户态 102.500 s，系统态 1.468 s，峰值 1872428 KB |
+| Arena good（上限 400 s） | 138/138 | 138/138 |
+| Arena bad | 92/92 拒绝 | 92/92 拒绝 |
+
+导出 6,495,296 行，332 MB，58547 个声明。计时用 `taskset -c 0` 和 `resource.getrusage` 的 `ru_utime` / `ru_maxrss`，没有设 `ulimit -v`。Arena：`python3 arena/run.py` 对这次的内核、超时上限 400 s，good 138 接受，bad 92 拒绝，没有超时或崩溃。
