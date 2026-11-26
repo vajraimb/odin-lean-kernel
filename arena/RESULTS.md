@@ -286,3 +286,26 @@ deep-n21 两组区间不相交（main 最快 2.834，本轮最慢 2.707）。dee
 | Arena bad | 92/92 拒绝 | 92/92 拒绝 |
 
 导出 6,495,296 行，332 MB，58547 个声明。计时用 `taskset -c 0` 和 `resource.getrusage` 的 `ru_utime` / `ru_maxrss`，没有设 `ulimit -v`。Arena：`python3 arena/run.py` 对这次的内核、超时上限 400 s，good 138 接受，bad 92 拒绝，没有超时或崩溃。
+
+## 更新：def_eq 按 let 形状和值共享
+
+`denote_blastCpopLayer.go._unary` 卡在开放项的 definitional equality：每个 binder 换一个 `ctx_stamp`，同一批 Nat 比较重新做。这一轮只改缓存，不改判定规则。
+
+- 不读 binder 类型、也不做 zeta 的结果，按可见 bvar 的 let/lambda 位模式共享。超过 64 个松变量时，用整条脊柱的编号，不哈希。
+- 只发生 zeta 的 `true`，按 let 值的脊柱共享，不含 binder 类型。兄弟 lambda 因此命中。
+- 证明无关、单位类型或结构 eta 给出的 `true`，按类型加 let 值的脊柱共享。
+- `false` 在这些类型规则可能变成 `true` 时仍留在 stamp 上。
+- whnf 继续按 stamp。把归约结果按 let 模式共享时，`Classical.em` 的 let 值类型对不上。
+
+gc 会滑动表达式编号，所以含表达式编号的脊柱表在 gc 时清空，并作废缓存世代。`purge` 且上下文栈为空时，脊柱编号重新从 1 计。
+
+单次测量，`taskset -c 0`，`-o:speed`，没有 `ulimit -v`。Std 那次设了 `DIAG=1`（每 2^21 次 def_eq 打一行计数），Init 和 Arena 没有。
+
+| 项目 | 结果 |
+|---|---|
+| 完整 Std（96627 个声明） | 96627 通过，0 拒绝，wall 559.258 s，用户态 555.292 s，系统态 3.867 s，峰值 RSS 4629724 KB |
+| 其中 `denote_blastCpopLayer.go._unary` | OK |
+| 完整 Init | 58547 通过，0 拒绝，wall 82.660 s，用户态 81.064 s，系统态 1.459 s，峰值 RSS 1851972 KB |
+| Arena good / bad（上限 400 s） | 138/138 接受，92/92 拒绝 |
+
+Init 的 82.660 s 是相对上一轮 103.979 s 的单次样本，没有重复，不把差值当成稳定加速。Std 是这版内核第一次跑完。

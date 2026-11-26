@@ -554,6 +554,13 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	}
 	gc_runs += 1
 	gc_freed += n - (next - wm)
+	// Let-value and binder-type spines are keyed by expression ids. gc slides
+	// those ids, so the intern tables and every cache entry that stored one
+	// have to die together. The let/lambda bit pattern has no expression id
+	// and can be rebuilt; its cache entries die with the same generation.
+	delete(vpat_of); vpat_of = nil
+	delete(tpat_of); tpat_of = nil
+	cache_gen += 1
 	return res
 }
 
@@ -801,13 +808,17 @@ whnf_core :: proc(e: int) -> int {
 		// No let is open in the inference context, so this bvar is stuck.
 		if len(ictx) == 0 do return e
 	}
-	// Loose bvars are hash-consed by index alone, so a cache key that ignores the
-	// inference context would confuse every binder. Closed terms are context-free.
-	open := exprs[e].lbr > 0
-	ck := open ? ctx_key() : 0
-	if r, ok := lc_get(&lc_whnfc, e, ck, open ? 1 : 0); ok do return r
+	// Loose bvars are hash-consed by index alone. With no visible let, zeta cannot
+	// fire, so the result is shared across lambda binders unless this step reads
+	// a binder type (whnf_dep). A let, or that type-sensitive step, keeps the stamp.
+	if r, ok := whnf_load(&lc_whnfc, e, 0, 1); ok do return r
+	saved_d, saved_z := whnf_dep, zeta_hit
+	whnf_dep, zeta_hit = false, false
 	r := whnf_core_raw(e)
-	if !aborted && !fuel_out do lc_put(&lc_whnfc, e, ck, open ? 1 : 0, r, max(e, r))
+	sens := whnf_dep || zeta_hit
+	whnf_dep = saved_d || whnf_dep
+	zeta_hit = saved_z || zeta_hit
+	whnf_save(&lc_whnfc, e, r, 0, 1, sens)
 	return r
 }
 
@@ -991,6 +1002,7 @@ try_iota_lazy :: proc(rec_const: int, d: Decl, st_base: int, nt, nenv: ^int) -> 
 	if nargs <= major_idx do return false
 	major := force_thunk(arg(major_idx))
 	if d.k {
+		note_major_type(major)
 		saved := failure
 		t, ok1 := infer(major)
 		if ok1 {
@@ -1018,6 +1030,8 @@ try_iota_lazy :: proc(rec_const: int, d: Decl, st_base: int, nt, nenv: ^int) -> 
 		if cd, f := env[exprs[mh].a]; f && cd.kind == .Ctor do is_ctor = true
 	}
 	if !is_ctor {
+		if !rec_reads_type(d) do return false
+		note_major_type(major)
 		major = expand_struct(major)
 		delete(margs)
 		mh, margs = get_app(major)
@@ -1192,6 +1206,8 @@ nat_unfold_capped :: proc(nm: string) -> bool {
 }
 
 // Unfold a definition at the head of e (one step). ok=false if impossible.
+// Tag 2/3 on the whnf_core table: one unfold is not the whnf_core of e itself
+// (a definition is stuck there) and not the fully unfolded whnf.
 unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	enter(.Unfold)
 	if trace_on { pc_unf += 1; if pc_unf % 100000 == 0 { fmt.eprintfln("P unf %d", pc_unf) } }
@@ -1202,18 +1218,37 @@ unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	d, found := env[hx.a]
 	if !found || d.kind != .Def || d.height < 0 do return e, false
 	if len(d.lparams) != len(hx.us) do return e, false
+	if r, hit := whnf_load(&lc_whnfc, e, 2, 3); hit do return r, true
 	if prof_on do hist[names[hx.a]] += 1
 	// Closed arithmetic is a finite computation (GMP, once both sides are
 	// literals). The expression-cap blowup is an open argument — a bvar or a
 	// free variable — walked one successor at a time.
+	// A refused unfold is not cached: the counter is per top-level def_eq, so the
+	// same term can unfold again on the next comparison.
 	if nat_unfold_capped(names[hx.a]) && (exprs[e].lbr > 0 || exprs[e].hasfv) {
-		if r, ok2 := reduce_nat(e); ok2 do return r, true
+		saved_d, saved_z := whnf_dep, zeta_hit
+		whnf_dep, zeta_hit = false, false
+		r, ok2 := reduce_nat(e)
+		sens := whnf_dep || zeta_hit
+		whnf_dep = saved_d || whnf_dep
+		zeta_hit = saved_z || zeta_hit
+		if ok2 {
+			whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+			return r, true
+		}
 		if nat_unfolds >= NAT_DEFEQ_UNFOLD_CAP do return e, false
 		nat_unfolds += 1
 	}
+	saved_d, saved_z := whnf_dep, zeta_hit
+	whnf_dep, zeta_hit = false, false
 	r := inst_expr_levels(d.value, d.lparams, hx.us)
 	for a in args do r = mk_app(r, a)
-	return whnf_core(r), true
+	r = whnf_core(r)
+	sens := whnf_dep || zeta_hit
+	whnf_dep = saved_d || whnf_dep
+	zeta_hit = saved_z || zeta_hit
+	whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+	return r, true
 }
 
 head_height :: proc(e: int) -> int {
@@ -1228,14 +1263,16 @@ head_height :: proc(e: int) -> int {
 
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
-	open := exprs[e].lbr > 0
-	ck := open ? ctx_key() : 0
-	tag := open ? 1 : 0
-	if r, ok := lc_get(&lc_whnf, e, ck, tag); ok do return r
+	if r, ok := whnf_load(&lc_whnf, e, 0, 1); ok do return r
+	saved_d, saved_z := whnf_dep, zeta_hit
+	whnf_dep, zeta_hit = false, false
 	wm := len(exprs)
 	r := whnf_raw(e)
+	sens := whnf_dep || zeta_hit
+	whnf_dep = saved_d || whnf_dep
+	zeta_hit = saved_z || zeta_hit
 	if len(exprs) - wm > gc_min do r = gc_region(wm, r)
-	if !aborted && !fuel_out do lc_put(&lc_whnf, e, ck, tag, r, max(e, r))
+	whnf_save(&lc_whnf, e, r, 0, 1, sens)
 	return r
 }
 
@@ -1545,6 +1582,22 @@ structure_like :: proc(name: int) -> (ind: Decl, ok: bool) {
 	return d, true
 }
 
+// K and structure eta read the major's type. Nat.rec / Bool.rec do not: their
+// constructors are not produced by expanding some other one-constructor type,
+// so a stuck major stays stuck without consulting the context.
+rec_reads_type :: proc(d: Decl) -> bool {
+	if d.k do return true
+	if len(d.rules) == 0 do return false
+	cd, ok := env[d.rules[0].ctor]
+	if !ok do return false
+	_, is_s := structure_like(cd.induct)
+	return is_s
+}
+
+note_major_type :: proc(major: int) {
+	if exprs[major].lbr > 0 || exprs[major].hasfv do whnf_dep = true
+}
+
 // If major (of structure type, not a Prop) is not a constructor application,
 // replace it by C params (proj 0 major) ... (proj n major).
 expand_struct :: proc(major: int) -> int {
@@ -1575,6 +1628,7 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 	if len(args) <= major_idx do return 0, false
 	major := args[major_idx]
 	if d.k {
+		note_major_type(major)
 		saved := failure
 		t, ok1 := infer(major)
 		if ok1 {
@@ -1602,6 +1656,8 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 		if cd, f := env[exprs[mh].a]; f && cd.kind == .Ctor do is_ctor = true
 	}
 	if !is_ctor {
+		if !rec_reads_type(d) do return 0, false
+		note_major_type(major)
 		major = expand_struct(major)
 		delete(margs)
 		mh, margs = get_app(major)
@@ -1630,12 +1686,48 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 // are unsound for open terms; `ctx_stamp` is part of those keys. `ctx_floor`
 // hides the outer context while a closed subterm is checked, so its bvars cannot
 // see binders it does not sit under.
-CtxEnt :: struct { ty, val, depth, saved: int }
+CtxEnt :: struct { ty, val, depth, saved: int, mask: u64, pat, vpat, tpat: int }
 ictx: [dynamic]CtxEnt
 ctx_floor: int
 ctx_stamp: int = 1
 next_stamp: int = 1
 idepth: int
+// Bit i is set when bvar i is a let. Only the innermost 64 binders fit here.
+// Wider terms use pat_id, the interned full let/lambda spine.
+let_mask: u64
+// Exact id of the let/lambda spine. Sibling binders with the same shape share
+// an id; let values and binder types are not part of it.
+Pat :: struct { bit: u8, outer: int }
+pat_of: map[Pat]int
+next_pat: int = 1
+pat_id: int
+// Spine of let values, ignoring binder types. Sibling lambdas share an id, so a
+// zeta that only read those lets can be reused. A lambda contributes no value.
+VPat :: struct { letb: u8, val, outer: int }
+vpat_of: map[VPat]int
+next_vpat: int = 1
+val_pat: int
+// Full binder spine: type and let value. Proof irrelevance and structure
+// reduction depend on the types, so those true results key on this.
+TPat :: struct { ty, val, outer: int }
+tpat_of: map[TPat]int
+next_tpat: int = 1
+type_pat: int
+// This reduction substituted a let (zeta) or read a binder type. The result
+// stays under the stamp. A computation that did neither depends only on which
+// of its bvars are lets, not on the let values or the binder types.
+whnf_dep: bool
+zeta_hit: bool
+// Proof irrelevance, a unit-like type, or structure eta read binder types.
+deq_dep: bool
+// A type-directed rule did not apply. A `false` result might become true under
+// other binder types, so only a `true` from this comparison is shared.
+type_maybe: bool
+diag_on: bool
+diag_deq, diag_hit, diag_raw: int
+diag_mh, diag_sh, diag_ms, diag_ss: int
+diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
+diag_ph, diag_ps, diag_vh, diag_vs, diag_th, diag_ts: int
 
 // Cache key for an open term. Loose bvars are shared by index, and a closed
 // subterm raises ctx_floor without pushing, so both the stamp and the floor
@@ -1648,14 +1740,98 @@ ctx_key :: proc() -> int {
 	return ctx_stamp + (ctx_floor << 32)
 }
 
+pat_intern :: proc(bit: u8) -> int {
+	if pat_of == nil do pat_of = make(map[Pat]int)
+	p := Pat{bit, pat_id}
+	if id, ok := pat_of[p]; ok do return id
+	id := next_pat
+	next_pat += 1
+	pat_of[p] = id
+	return id
+}
+
+vpat_intern :: proc(letb: u8, val: int) -> int {
+	if vpat_of == nil do vpat_of = make(map[VPat]int)
+	p := VPat{letb, val, val_pat}
+	if id, ok := vpat_of[p]; ok do return id
+	id := next_vpat
+	next_vpat += 1
+	vpat_of[p] = id
+	return id
+}
+
+tpat_intern :: proc(ty, val: int) -> int {
+	if tpat_of == nil do tpat_of = make(map[TPat]int)
+	p := TPat{ty, val, type_pat}
+	if id, ok := tpat_of[p]; ok do return id
+	id := next_tpat
+	next_tpat += 1
+	tpat_of[p] = id
+	return id
+}
+
 ctx_push :: proc(ty, val: int) {
-	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp})
+	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp, let_mask, pat_id, val_pat, type_pat})
 	next_stamp += 1
 	ctx_stamp = next_stamp
+	bit: u64 = val >= 0 ? 1 : 0
+	let_mask = (let_mask << 1) | bit
+	pat_id = pat_intern(u8(bit))
+	if val >= 0 do val_pat = vpat_intern(1, val)
+	else do val_pat = vpat_intern(0, 0)
+	type_pat = tpat_intern(ty, val)
 }
 ctx_pop :: proc() {
 	ent := pop(&ictx)
 	ctx_stamp = ent.saved
+	let_mask = ent.mask
+	pat_id = ent.pat
+	val_pat = ent.vpat
+	type_pat = ent.tpat
+}
+
+// Let/lambda pattern of the bvars e can see. ok is false when that pattern does
+// not fit in the mask (more than 64 loose bvars).
+seen_mask :: proc(e: int) -> (m: u64, ok: bool) {
+	lbr := exprs[e].lbr
+	if lbr > 64 do return 0, false
+	if lbr <= 0 do return 0, true
+	if lbr == 64 do return let_mask, true
+	return let_mask & ((u64(1) << uint(lbr)) - 1), true
+}
+
+// A term mentions the local context when it has a loose bvar or a free variable
+// whose type was recorded at some depth. Closed data does not.
+ctx_keyed :: proc(e: int) -> bool {
+	return exprs[e].lbr > 0 || exprs[e].hasfv
+}
+
+// A term whose loose range does not fit the 64-bit mask can still be shared
+// when the whole let/lambda spine matches. Free variables stay on the stamp:
+// their recorded types may mention a context this spine does not describe.
+wide_pat :: proc(e: int) -> bool {
+	return exprs[e].lbr > 64 && !exprs[e].hasfv
+}
+
+// Insensitive results are keyed by the let-pattern of the bvars the term sees
+// (tag free_tag). Zeta and type-sensitive results use the stamp.
+// Reduction stays on the stamp. A weak-head result can read a binder type or
+// a let without the local flag noticing (the read happens in a nested infer),
+// and sharing it across binders rejected Classical.em. Equality results are
+// cached separately, where the flags are checked on the boolean.
+whnf_load :: proc(table: ^[]Ent, e, free_tag, stamp_tag: int) -> (int, bool) {
+	if !ctx_keyed(e) do return lc_get(table, e, 0, free_tag)
+	return lc_get(table, e, ctx_key(), stamp_tag)
+}
+
+whnf_save :: proc(table: ^[]Ent, e, r, free_tag, stamp_tag: int, sensitive: bool) {
+	if aborted || fuel_out do return
+	_ = sensitive
+	if !ctx_keyed(e) {
+		lc_put(table, e, 0, free_tag, r, max(e, r))
+		return
+	}
+	lc_put(table, e, ctx_key(), stamp_tag, r, max(e, r))
 }
 // Value of let-bound bvar `index` at the current depth, if this binder was opened
 // by infer (not by a term-level let, which whnf still substitutes directly).
@@ -1667,6 +1843,7 @@ ctx_zeta :: proc(index: int) -> (int, bool) {
 	if ent.val < 0 do return 0, false
 	d := idepth - ent.depth
 	if d < 0 do return 0, false
+	zeta_hit = true
 	return lift(ent.val, d, 0), true
 }
 
@@ -1921,10 +2098,19 @@ try_eta_struct :: proc(a, b: int) -> bool {
 	defer failure = saved
 	ta, ok1 := infer(a)
 	tb, ok2 := infer(b)
-	if !ok1 || !ok2 || !def_eq(ta, tb) do return false
-	for i in 0 ..< c.nfields {
-		if !def_eq(mk_proj(c.induct, i, a), ab[c.nparams + i]) do return false
+	if !ok1 || !ok2 || !def_eq(ta, tb) {
+		type_maybe = true
+		return false
 	}
+	for i in 0 ..< c.nfields {
+		if !def_eq(mk_proj(c.induct, i, a), ab[c.nparams + i]) {
+			type_maybe = true
+			return false
+		}
+	}
+	// Closed types that matched without reading this context denote the same
+	// structure under every binder, so the eta proof does not need the stamp.
+	if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
 	return true
 }
 
@@ -1945,16 +2131,106 @@ def_eq :: proc(a0, b0: int) -> bool {
 	defer def_eq_depth -= 1
 	if trace_on { pc_de += 1; if pc_de % 3000 == 0 { fmt.eprintfln("P de %d", pc_de) } }
 	if a0 == b0 do return true
+	if diag_on {
+		diag_deq += 1
+		if diag_deq & 0x1fffff == 0 {
+			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), fuel, next_vpat, next_tpat)
+		}
+	}
 	k := [2]int{min(a0, b0), max(a0, b0)}
-	// Open terms are definitionally equal only relative to the current context
-	// (a let-bound bvar unfolds by zeta). Closed terms keep the old key.
-	open := exprs[a0].lbr > 0 || exprs[b0].lbr > 0
-	ck := open ? ctx_key() : 0
-	if r, ok := lc_get(&lc_defeq, k[0], k[1], ck); ok do return r != 0
+	// No zeta and no binder-type test: the result depends only on which bvars
+	// are lets. That pattern is the key. Proof irrelevance and zeta use the stamp,
+	// stored negative so it cannot collide with a mask.
+	ma, oka := seen_mask(a0)
+	mb, okb := seen_mask(b0)
+	share := oka && okb
+	mask := int(ma | mb)
+	// One side deeper than 64 binders: the 64-bit mask does not describe it.
+	// The interned spine does, and free variables are excluded from that key.
+	wide := !share && !exprs[a0].hasfv && !exprs[b0].hasfv
+	keyed := ctx_keyed(a0) || ctx_keyed(b0)
+	if share {
+		if r, ok := lc_get(&lc_defeq, k[0], k[1], mask); ok {
+			if diag_on { diag_hit += 1; diag_mh += 1 }
+			return r != 0
+		}
+	}
+	if wide {
+		if r, ok := lc_get(&lc_defeq, k[0], k[1], pat_id); ok {
+			if diag_on { diag_hit += 1; diag_ph += 1 }
+			return r != 0
+		}
+	}
+	// Zeta-true results are stored under the let-value spine (negative first
+	// key, so they cannot collide with a mask or a stamp entry).
+	if ctx_floor == 0 && keyed && val_pat != 0 {
+		if r, ok := lc_get(&lc_defeq, -k[0] - 1, k[1], val_pat); ok {
+			if diag_on { diag_hit += 1; diag_vh += 1 }
+			return r != 0
+		}
+	}
+	if ctx_floor == 0 && keyed && type_pat != 0 {
+		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
+			if diag_on { diag_hit += 1; diag_th += 1 }
+			return r != 0
+		}
+	}
+	if keyed {
+		if r, ok := lc_get(&lc_defeq, k[0], k[1], -ctx_key()); ok {
+			if diag_on { diag_hit += 1; diag_sh += 1 }
+			return r != 0
+		}
+	}
+	saved_d, saved_w, saved_z, saved_t := deq_dep, whnf_dep, zeta_hit, type_maybe
+	deq_dep, whnf_dep, zeta_hit, type_maybe = false, false, false, false
 	wm := len(exprs)
 	r := def_eq_raw(a0, b0)
+	// Snapshot before restoring the caller. The counters have to see this
+	// frame's flags, not the parent's.
+	ld, lz, lw, lt := deq_dep, zeta_hit, whnf_dep, type_maybe
+	// A failed type-directed rule makes only this `false` context-sensitive.
+	// It must not poison a caller whose own comparison succeeded structurally.
+	sens := ld || lw || lz || (!r && lt)
+	deq_dep = saved_d || deq_dep
+	whnf_dep = saved_w || whnf_dep
+	zeta_hit = saved_z || zeta_hit
+	type_maybe = saved_t
 	if len(exprs) - wm > gc_min do gc_region(wm, -1)
-	if !aborted && !fuel_out do lc_put(&lc_defeq, k[0], k[1], ck, r ? 1 : 0, k[1])
+	if !aborted && !fuel_out {
+		if share && !sens {
+			if diag_on do diag_ms += 1
+			lc_put(&lc_defeq, k[0], k[1], mask, r ? 1 : 0, k[1])
+		} else if wide && !sens {
+			if diag_on do diag_ps += 1
+			lc_put(&lc_defeq, k[0], k[1], pat_id, r ? 1 : 0, k[1])
+		} else if r && lz && !ld && !lw && ctx_floor == 0 && keyed {
+			if diag_on do diag_vs += 1
+			lc_put(&lc_defeq, -k[0] - 1, k[1], val_pat, 1, k[1])
+		} else if r && (ld || lw) && ctx_floor == 0 && keyed {
+			if diag_on do diag_ts += 1
+			lc_put(&lc_defeq, k[0], -k[1] - 1, type_pat, 1, k[1])
+		} else if keyed {
+			if diag_on {
+				diag_ss += 1
+				if r { diag_ss_t += 1 } else { diag_ss_f += 1 }
+				n := 0
+				if ld do n += 1
+				if lz do n += 1
+				if lw do n += 1
+				if !r && lt do n += 1
+				if n > 1 do diag_mix += 1
+				else if ld do diag_rd += 1
+				else if lz do diag_rz += 1
+				else if lw do diag_rw += 1
+				else if !r && lt do diag_rt += 1
+				else do diag_wide += 1
+			}
+			lc_put(&lc_defeq, k[0], k[1], -ctx_key(), r ? 1 : 0, k[1])
+		} else {
+			if diag_on do diag_ms += 1
+			lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0, k[1])
+		}
+	}
 	return r
 }
 
@@ -2023,15 +2299,25 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 		defer delete(a2)
 		if def_eq(h1, h2) && args_eq(a1, a2) do return true
 	}
-	// proof irrelevance
+	// Proof irrelevance applies only when the terms are propositions here. A later
+	// structural success does not depend on that, so a true result can still be
+	// shared. A false result might flip under other binder types.
 	if !definitely_not_proof(a) && !definitely_not_proof(b) {
 		saved := failure
 		ta, ok := infer(a)
 		if ok && is_prop(ta) {
 			tb, ok2 := infer(b)
-			if ok2 do return def_eq(ta, tb)
+			if ok2 {
+				eq := def_eq(ta, tb)
+				// Proof irrelevance of two closed propositions is the same under
+				// every binder. An open proposition, or a comparison that itself
+				// read the context, stays on the stamp.
+				if !eq || deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+				return eq
+			}
 		}
 		failure = saved
+		type_maybe = true
 	}
 	// literals
 	if ea.kind == .NatLit && eb.kind == .NatLit do return ea.a == eb.a
@@ -2119,11 +2405,15 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 			if exprs[uh].kind == .Const {
 				if ind, f := env[exprs[uh].a]; f && ind.kind == .Induct && len(ind.ctors) == 1 && ind.nindices == 0 && env[ind.ctors[0]].nfields == 0 && len(uargs) == ind.nparams {
 					tb, ok2 := infer(b)
-					if ok2 && def_eq(ta, tb) do return true
+					if ok2 && def_eq(ta, tb) {
+						if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+						return true
+					}
 				}
 			}
 		}
 		failure = saved
+		type_maybe = true
 	}
 	// structural comparison of neutral terms
 	if ea.kind == .Proj && eb.kind == .Proj {
@@ -2718,6 +3008,19 @@ purge :: proc() {
 	cache_gen += 1
 	delete(canon_memo); canon_memo = nil
 	delete(sem_memo); sem_memo = nil
+	// The spine tables key on expression ids from this declaration. The cache
+	// generation just moved, and the context stack is empty between decls, so
+	// the ids can start over instead of retaining every proof's binders.
+	if len(ictx) == 0 do reset_spines()
+}
+
+reset_spines :: proc() {
+	delete(pat_of); pat_of = nil
+	delete(vpat_of); vpat_of = nil
+	delete(tpat_of); tpat_of = nil
+	next_pat, next_vpat, next_tpat = 1, 1, 1
+	pat_id, val_pat, type_pat = 0, 0, 0
+	let_mask = 0
 }
 
 clear_caches :: proc() {
@@ -3044,6 +3347,7 @@ main :: proc() {
 	eager_beta = os.get_env("EAGER_BETA", context.allocator) != ""
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
+	diag_on = os.get_env("DIAG", context.allocator) != ""
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
