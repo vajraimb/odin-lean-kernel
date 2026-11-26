@@ -1830,6 +1830,76 @@ is_prop :: proc(ty: int) -> bool {
 	return exprs[w].kind == .Sort && level_equiv(exprs[w].a, 0)
 }
 
+// A universe that cannot be 0. imax(_, 0) = 0, so only a positive right side counts.
+level_definitely_pos :: proc(l: int) -> bool {
+	if l < 0 || l >= len(levels) do return false
+	lv := levels[l]
+	switch lv.kind {
+	case .Succ: return true
+	case .Max: return level_definitely_pos(lv.a) || level_definitely_pos(lv.b)
+	case .IMax: return level_definitely_pos(lv.b)
+	case .Zero, .Param: return false
+	}
+	return false
+}
+
+// Result of a forall telescope, if it is a sort.
+result_sort_level :: proc(ty: int) -> (int, bool) {
+	t := ty
+	for n := 0; t >= 0 && t < len(exprs) && exprs[t].kind == .Pi && n < 10000; n += 1 {
+		t = exprs[t].c
+	}
+	if t >= 0 && t < len(exprs) && exprs[t].kind == .Sort do return exprs[t].a, true
+	return 0, false
+}
+
+// True when this inductive never lives in Prop, so its constructors are data.
+induct_not_prop :: proc(ind: Decl) -> bool {
+	if lv, ok := result_sort_level(ind.type); ok do return level_definitely_pos(lv)
+	return false
+}
+
+// True when a constant's result type cannot be a proposition. The application is
+// then data or a type, and proof irrelevance cannot apply. A result that is a
+// bound variable (id, cast, a motive) might still be a proof, so it returns false.
+result_not_prop :: proc(ty: int) -> bool {
+	t := ty
+	for n := 0; t >= 0 && t < len(exprs) && exprs[t].kind == .Pi && n < 10000; n += 1 {
+		t = exprs[t].c
+	}
+	if t < 0 || t >= len(exprs) do return false
+	ex := exprs[t]
+	if ex.kind == .Sort do return true
+	h := t
+	for exprs[h].kind == .App do h = exprs[h].a
+	if exprs[h].kind != .Const do return false
+	d, ok := env[exprs[h].a]
+	if !ok || d.kind != .Induct do return false
+	return induct_not_prop(d)
+}
+
+// Proof irrelevance only identifies proofs. Types, literals, inductive type
+// formers, and data (Bool, Nat, PSigma of a Type, …) are not proofs.
+definitely_not_proof :: proc(e: int) -> bool {
+	ex := exprs[e]
+	if ex.kind == .Sort || ex.kind == .Pi || ex.kind == .NatLit || ex.kind == .StrLit do return true
+	h := e
+	for exprs[h].kind == .App do h = exprs[h].a
+	if exprs[h].kind != .Const do return false
+	d, ok := env[exprs[h].a]
+	if !ok do return false
+	switch d.kind {
+	case .Induct: return true
+	case .Ctor:
+		ind, f := env[d.induct]
+		if !f do return false
+		return induct_not_prop(ind)
+	case .Def, .Thm, .Axiom, .Opaque, .Rec, .Quot:
+		return result_not_prop(d.type)
+	}
+	return false
+}
+
 // ---------------------------------------------------------------- definitional equality
 
 args_eq :: proc(a, b: [dynamic]int) -> bool {
@@ -1856,6 +1926,17 @@ try_eta_struct :: proc(a, b: int) -> bool {
 		if !def_eq(mk_proj(c.induct, i, a), ab[c.nparams + i]) do return false
 	}
 	return true
+}
+
+// Compare two bodies under one fresh binder. bvar 0 on both sides is that binder.
+// Substituting a fresh free variable copied every node the binder reaches.
+def_eq_under :: proc(ty, lhs, rhs: int) -> bool {
+	ctx_push(ty, -1)
+	idepth += 1
+	r := def_eq(lhs, rhs)
+	idepth -= 1
+	ctx_pop()
+	return r
 }
 
 def_eq :: proc(a0, b0: int) -> bool {
@@ -1915,22 +1996,35 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	ea, eb := exprs[a], exprs[b]
 
 	if ea.kind == .Sort && eb.kind == .Sort do return level_equiv_sem(ea.a, eb.a)
+	// Same variable. Different indices still fall through: unit-like types and
+	// proof irrelevance identify distinct variables.
+	if ea.kind == .BVar && eb.kind == .BVar && ea.a == eb.a do return true
 	if ea.kind == eb.kind && (ea.kind == .Lam || ea.kind == .Pi) {
 		if !def_eq(ea.b, eb.b) do return false
-		fv := fresh_fvar(ea.a, ea.b)
-		return def_eq(instantiate(ea.c, fv), instantiate(eb.c, fv))
+		return def_eq_under(ea.b, ea.c, eb.c)
 	}
-	// eta
+	// eta. The non-lambda side is lifted under the new binder; its loose bvars
+	// keep pointing at the outer context. A fresh fvar used to be copied through
+	// the whole body.
 	if ea.kind == .Lam && eb.kind != .Lam {
-		fv := fresh_fvar(ea.a, ea.b)
-		return def_eq(instantiate(ea.c, fv), mk_app(b, fv))
+		return def_eq_under(ea.b, ea.c, mk_app(lift(b, 1, 0), mk_bvar(0)))
 	}
 	if eb.kind == .Lam && ea.kind != .Lam {
-		fv := fresh_fvar(eb.a, eb.b)
-		return def_eq(mk_app(a, fv), instantiate(eb.c, fv))
+		return def_eq_under(eb.b, eb.c, mk_app(lift(a, 1, 0), mk_bvar(0)))
+	}
+	// Neutral heads (not reducible defs). A structural match is equality; a
+	// mismatch still falls through, because two proofs of one proposition need
+	// not match structurally. The same comparison stays at the bottom for defs
+	// the portfolio does not unfold.
+	if ea.kind == .App && eb.kind == .App && head_height(a) < 0 && head_height(b) < 0 {
+		h1, a1 := get_app(a)
+		h2, a2 := get_app(b)
+		defer delete(a1)
+		defer delete(a2)
+		if def_eq(h1, h2) && args_eq(a1, a2) do return true
 	}
 	// proof irrelevance
-	{
+	if !definitely_not_proof(a) && !definitely_not_proof(b) {
 		saved := failure
 		ta, ok := infer(a)
 		if ok && is_prop(ta) {
@@ -1953,7 +2047,10 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	// sides are closed. On open terms it forces whnf of the operands, which can walk a huge literal one
 	// successor at a time (e.g. `(x + 2^31) % 2^32` with x a variable) where plain unfolding of the two
 	// sides would have met quickly. whnf itself still reduces open terms whose operands become literals.
-	if !ea.hasfv && !eb.hasfv {
+	// Nat-literal arithmetic. A free variable skips it: whnf of the operands walks
+	// an open successor chain. A loose bvar is the same, unless the term is small
+	// enough that the operands are already literals (character-code proofs).
+	if !ea.hasfv && !eb.hasfv && ((ea.lbr == 0 && eb.lbr == 0) || (!body_exceeds(a, 64) && !body_exceeds(b, 64))) {
 		if r, ok := reduce_nat(a); ok do return def_eq(r, b)
 		if r, ok := reduce_nat(b); ok do return def_eq(a, r)
 	}
@@ -2012,7 +2109,7 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 		if na != a || nb != b do return def_eq(na, nb)
 	}
 	if try_eta_struct(a, b) || try_eta_struct(b, a) do return true
-	{ // unit-like types: all elements are equal
+	if !definitely_not_proof(a) && !definitely_not_proof(b) { // unit-like types: all elements are equal
 		saved := failure
 		ta, ok := infer(a)
 		if ok {
