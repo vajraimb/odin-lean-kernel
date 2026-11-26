@@ -286,3 +286,13 @@ deep-n21 两组区间不相交（main 最快 2.834，本轮最慢 2.707）。dee
 | Arena bad | 92/92 拒绝 | 92/92 拒绝 |
 
 导出 6,495,296 行，332 MB，58547 个声明。计时用 `taskset -c 0` 和 `resource.getrusage` 的 `ru_utime` / `ru_maxrss`，没有设 `ulimit -v`。Arena：`python3 arena/run.py` 对这次的内核、超时上限 400 s，good 138 接受，bad 92 拒绝，没有超时或崩溃。
+
+## 更新：对齐 Arena 退出码，并检查 Std
+
+Arena 把退出码 2 记成主动放弃。用法错误、读文件失败、JSON 错误、导出里的非法表达式引用原来都是 2，现在改为 3。接受仍是 0，拒绝仍是 1。这个检查器不会主动放弃。
+
+改完之后重跑小套件：good 138/138 接受，bad 92/92 拒绝。
+
+同一台机器上导出工具链里的 `Std`（`import Std`，10,123,010 行，532 MB），`taskset -c 0`，没有 `ulimit -v`：rc 1，96589 通过、38 拒绝，wall 347.338 s，用户态 341.928 s，系统态 5.375 s，峰值 RSS 4531656 KB。唯一的根拒绝是 `Std.Tactic.BVDecide.BVExpr.bitblast.blastAdd.go_denote_eq._unary`，报资源上限。单独重跑时燃料计数是 27856925，远低于 30 亿；触发的是单声明 2000 万新表达式的上限。其余 37 个是未知常量连带失败。把上限抬到 8000 万之后，这个声明在大约 5.8 GB 处不再涨内存，CPU 仍满，没有在八分钟内结束，所以没有留下这个上限。
+
+Mathlib 没有跑。仓库仍是私有的，Arena 的 `language` 枚举里也没有 `odin`，这两件事挡住了进名单。

@@ -2926,14 +2926,16 @@ set_at :: proc(arr: ^[dynamic]$T, i: int, v: T) {
 }
 
 main :: proc() {
+	// Arena contract: 0 accept, 1 reject, 2 decline, anything else is a
+	// checker error. This checker does not decline. Malformed input exits 3.
 	if len(os.args) < 2 {
 		fmt.eprintln("usage: kernel file.ndjson")
-		os.exit(2)
+		os.exit(3)
 	}
 	data, err := os.read_entire_file(os.args[1], context.allocator)
 	if err != nil {
 		fmt.eprintln("cannot read file")
-		os.exit(2)
+		os.exit(3)
 	}
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
@@ -2961,7 +2963,7 @@ main :: proc() {
 		v, perr := json.parse(transmute([]byte)line, json.DEFAULT_SPECIFICATION, true, context.temp_allocator)
 		if perr != .None {
 			fmt.eprintln("json error:", perr)
-			os.exit(2)
+			os.exit(3)
 		}
 		if _, ok := jobj(v, "meta"); ok do continue
 
@@ -3047,7 +3049,7 @@ main :: proc() {
 			}
 			for r in refs do if r < 0 || r >= len(exprs) {
 				fmt.eprintln("malformed export: forward/invalid expr reference at id", i)
-				os.exit(2)
+				os.exit(3)
 			}
 			set_at(&exprs, i, e)
 			hc_register(i)
