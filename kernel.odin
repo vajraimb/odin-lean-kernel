@@ -12,6 +12,7 @@
 package main
 
 import "base:runtime"
+import "core:bufio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:unicode/utf8"
@@ -3325,16 +3326,45 @@ set_at :: proc(arr: ^[dynamic]$T, i: int, v: T) {
 	arr[i] = v
 }
 
+// One export line. A short line aliases the reader buffer and is only valid until
+// the next call. A line longer than the buffer is copied into the temp allocator.
+next_export_line :: proc(r: ^bufio.Reader) -> (line: string, done: bool) {
+	frag, e := bufio.reader_read_slice(r, '\n')
+	if e == .Buffer_Full {
+		full: [dynamic]byte
+		full.allocator = context.temp_allocator
+		append(&full, ..frag)
+		for {
+			frag, e = bufio.reader_read_slice(r, '\n')
+			append(&full, ..frag)
+			if e != .Buffer_Full do break
+		}
+		if e != nil && e != .EOF {
+			fmt.eprintln("cannot read file")
+			os.exit(2)
+		}
+		return strings.clone(string(full[:]), context.temp_allocator), false
+	}
+	if e == .EOF && len(frag) == 0 do return "", true
+	if e != nil && e != .EOF {
+		fmt.eprintln("cannot read file")
+		os.exit(2)
+	}
+	return string(frag), false
+}
+
 main :: proc() {
 	if len(os.args) < 2 {
 		fmt.eprintln("usage: kernel file.ndjson")
 		os.exit(2)
 	}
-	data, err := os.read_entire_file(os.args[1], context.allocator)
-	if err != nil {
+	f, ferr := os.open(os.args[1])
+	if ferr != nil {
 		fmt.eprintln("cannot read file")
 		os.exit(2)
 	}
+	rd: bufio.Reader
+	bufio.reader_init(&rd, os.to_reader(f), 1 << 20)
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
@@ -3351,14 +3381,36 @@ main :: proc() {
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
-	// ids used by the export are never mixed with nodes the kernel creates while checking
+	// ids used by the export are never mixed with nodes the kernel creates while checking.
+	// Lines are streamed. The declaration text (small next to the expression table) is
+	// kept for pass 1; the raw file is not.
 	decl_lines := make([dynamic]string)
+	text: string
+	decls: []string
 	for pass in 0 ..< 2 {
-	if pass == 1 { delete(data); data = nil; wm_exprs, wm_levels, wm_fv = len(exprs), len(levels), len(fv_type) }
-	text := pass == 0 ? string(data) : strings.join(decl_lines[:], "\n")
-	for line in strings.split_lines_iterator(&text) {
-		if len(strings.trim_space(line)) == 0 do continue
+	di := 0
+	if pass == 1 {
+		bufio.reader_destroy(&rd)
+		os.close(f)
+		wm_exprs, wm_levels, wm_fv = len(exprs), len(levels), len(fv_type)
+		text = strings.join(decl_lines[:], "\n")
+		for s in decl_lines do delete(s)
+		clear(&decl_lines)
+		decls = strings.split_lines(text)
+	}
+	for {
 		if pass == 0 do free_all(context.temp_allocator)
+		line: string
+		if pass == 0 {
+			raw, done := next_export_line(&rd)
+			if done do break
+			line = strings.trim_right(raw, "\r\n")
+		} else {
+			if di >= len(decls) do break
+			line = decls[di]
+			di += 1
+		}
+		if len(strings.trim_space(line)) == 0 do continue
 		v, perr := json.parse(transmute([]byte)line, json.DEFAULT_SPECIFICATION, true, context.temp_allocator)
 		if perr != .None {
 			fmt.eprintln("json error:", perr)
