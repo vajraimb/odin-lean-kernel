@@ -21,6 +21,7 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:strconv"
+import "core:sys/linux"
 import "core:time"
 
 // ---------------------------------------------------------------- data
@@ -555,6 +556,7 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	}
 	gc_runs += 1
 	gc_freed += n - (next - wm)
+	release_expr_tail()
 	// Let-value and binder-type spines are keyed by expression ids. gc slides
 	// those ids, so the intern tables and every cache entry that stored one
 	// have to die together. The let/lambda bit pattern has no expression id
@@ -3013,6 +3015,42 @@ purge :: proc() {
 	// generation just moved, and the context stack is empty between decls, so
 	// the ids can start over instead of retaining every proof's binders.
 	if len(ictx) == 0 do reset_spines()
+	release_expr_tail()
+}
+
+// The expression table doubles when it grows, and a shrunk length does not
+// return those pages. Either one holds a multi-gigabyte export resident.
+// The capacity is reserved once when STORE_CAP is set; pages past the live
+// length are given back either way.
+drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
+	if ptr == nil || capacity <= length || length < 0 do return
+	page := uintptr(4096)
+	base := uintptr(ptr)
+	start := base + uintptr(length * elem)
+	start = (start + page - 1) & ~(page - 1)
+	end := base + uintptr(capacity * elem)
+	if start >= end do return
+	_ = linux.madvise(rawptr(start), uint(end - start), .DONTNEED)
+}
+
+release_expr_tail :: proc() {
+	drop_tail(raw_data(exprs[:]), size_of(Expr), len(exprs), cap(exprs))
+	drop_tail(raw_data(born[:]), size_of(u32), len(born), cap(born))
+	drop_tail(raw_data(hc_next[:]), size_of(int), len(hc_next), cap(hc_next))
+}
+
+reserve_expr_store :: proc() {
+	s := os.get_env("STORE_CAP", context.allocator)
+	if s == "" do return
+	n, ok := strconv.parse_int(s)
+	if !ok || n <= 0 do return
+	reserve(&exprs, n)
+	reserve(&born, n)
+	reserve(&hc_next, n)
+	if cap(exprs) < n || cap(born) < n || cap(hc_next) < n {
+		fmt.eprintln("cannot reserve expression table")
+		os.exit(2)
+	}
 }
 
 reset_spines :: proc() {
@@ -3365,6 +3403,7 @@ main :: proc() {
 	}
 	rd: bufio.Reader
 	bufio.reader_init(&rd, os.to_reader(f), 1 << 20)
+	reserve_expr_store()
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
