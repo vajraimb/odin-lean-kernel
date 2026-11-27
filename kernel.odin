@@ -563,6 +563,7 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	// and can be rebuilt; its cache entries die with the same generation.
 	delete(vpat_of); vpat_of = nil
 	delete(tpat_of); tpat_of = nil
+	tpat_saturated = false
 	cache_gen += 1
 	return res
 }
@@ -1046,13 +1047,16 @@ try_iota_lazy :: proc(rec_const: int, d: Decl, st_base: int, nt, nenv: ^int) -> 
 	rf := false
 	for r in d.rules do if r.ctor == exprs[mh].a { rule = r; rf = true }
 	if !rf || len(margs) != cd.nparams + rule.nfields do return false
-	// new argument list (first argument first)
-	na := make([dynamic]int, context.temp_allocator)
+	// new argument list (first argument first). Not the temp arena: a declaration
+	// can iota-reduce millions of times before free_all, and the arena keeps
+	// every list.
+	na := make([dynamic]int)
 	for i in 0 ..< d.nparams + d.nmotives + d.nminors do append(&na, arg(i))
 	for i in len(margs) - rule.nfields ..< len(margs) do append(&na, new_thunk(margs[i], -1))
 	for i in major_idx + 1 ..< nargs do append(&na, arg(i))
 	resize(&mstack, st_base)
 	for k := len(na) - 1; k >= 0; k -= 1 do append(&mstack, na[k])
+	delete(na)
 	nt^ = inst_expr_levels(rule.rhs, d.lparams, rx.us)
 	nenv^ = -1
 	return true
@@ -1727,6 +1731,8 @@ deq_dep: bool
 // other binder types, so only a `true` from this comparison is shared.
 type_maybe: bool
 diag_on: bool
+spine_max: int
+tpat_saturated: bool
 diag_deq, diag_hit, diag_raw: int
 diag_mh, diag_sh, diag_ms, diag_ss: int
 diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
@@ -1767,6 +1773,14 @@ tpat_intern :: proc(ty, val: int) -> int {
 	if tpat_of == nil do tpat_of = make(map[TPat]int)
 	p := TPat{ty, val, type_pat}
 	if id, ok := tpat_of[p]; ok do return id
+	// Stop adding once the table is large. Deleting it returns the slots to the
+	// heap, which does not give the pages back, so a long declaration climbs
+	// until the process is killed. Callers must not cache under a spine id
+	// after this: new binders are left out of the id.
+	if tpat_saturated || (spine_max > 0 && len(tpat_of) >= spine_max) {
+		tpat_saturated = true
+		return type_pat
+	}
 	id := next_tpat
 	next_tpat += 1
 	tpat_of[p] = id
@@ -2137,7 +2151,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if diag_on {
 		diag_deq += 1
 		if diag_deq & 0x1fffff == 0 {
-			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), fuel, next_vpat, next_tpat)
+			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d tpat %d canon %d ictx %d levels %d depth %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(tpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_vpat, next_tpat)
 		}
 	}
 	k := [2]int{min(a0, b0), max(a0, b0)}
@@ -2172,7 +2186,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 			return r != 0
 		}
 	}
-	if ctx_floor == 0 && keyed && type_pat != 0 {
+	if ctx_floor == 0 && keyed && type_pat != 0 && !tpat_saturated {
 		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
 			if diag_on { diag_hit += 1; diag_th += 1 }
 			return r != 0
@@ -2209,7 +2223,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 		} else if r && lz && !ld && !lw && ctx_floor == 0 && keyed {
 			if diag_on do diag_vs += 1
 			lc_put(&lc_defeq, -k[0] - 1, k[1], val_pat, 1, k[1])
-		} else if r && (ld || lw) && ctx_floor == 0 && keyed {
+		} else if r && (ld || lw) && ctx_floor == 0 && keyed && !tpat_saturated {
 			if diag_on do diag_ts += 1
 			lc_put(&lc_defeq, k[0], -k[1] - 1, type_pat, 1, k[1])
 		} else if keyed {
@@ -3060,6 +3074,7 @@ reset_spines :: proc() {
 	next_pat, next_vpat, next_tpat = 1, 1, 1
 	pat_id, val_pat, type_pat = 0, 0, 0
 	let_mask = 0
+	tpat_saturated = false
 }
 
 clear_caches :: proc() {
@@ -3417,6 +3432,9 @@ main :: proc() {
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	diag_on = os.get_env("DIAG", context.allocator) != ""
+	if s := os.get_env("SPINE_MAX", context.allocator); s != "" {
+		if n, ok := strconv.parse_int(s); ok && n > 0 do spine_max = n
+	}
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
