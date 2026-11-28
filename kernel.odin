@@ -18,6 +18,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:unicode/utf8"
 import "core:math/big"
+import "core:mem"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -3524,7 +3525,41 @@ next_export_line :: proc(r: ^bufio.Reader) -> (line: string, done: bool) {
 	return string(frag), false
 }
 
+// MEMPROF=1 lists the allocation sites that still hold memory when the run
+// ends, largest first. Tracking every allocation is slow; use a small export.
+mem_track: mem.Tracking_Allocator
+mem_on: bool
+mem_report :: proc() {
+	if !mem_on do return
+	Site :: struct { bytes, count: int }
+	sites := make(map[string]Site, 1024, mem_track.backing)
+	for _, e in mem_track.allocation_map {
+		k := fmt.aprintf("%s:%d", e.location.file_path, e.location.line, allocator = mem_track.backing)
+		v := sites[k]
+		v.bytes += e.size; v.count += 1
+		sites[k] = v
+	}
+	Row :: struct { k: string, v: Site }
+	rows := make([dynamic]Row, mem_track.backing)
+	for k, v in sites do append(&rows, Row{k, v})
+	slice.sort_by(rows[:], proc(a, b: Row) -> bool { return a.v.bytes > b.v.bytes })
+	fmt.eprintfln("MEM live %d bytes in %d allocations, total %d allocs %d frees", mem_track.current_memory_allocated, len(mem_track.allocation_map), mem_track.total_allocation_count, mem_track.total_free_count)
+	for r, i in rows { if i >= 30 do break; fmt.eprintfln("MEM %12d bytes %9d allocs  %s", r.v.bytes, r.v.count, r.k) }
+}
+
 main :: proc() {
+	if os.get_env("MEMPROF", context.allocator) != "" {
+		mem.tracking_allocator_init(&mem_track, context.allocator)
+		mem_on = true
+	}
+	// An assignment to `context` inside the `if` would end with its scope.
+	alloc := context.allocator
+	if mem_on do alloc = mem.tracking_allocator(&mem_track)
+	context.allocator = alloc
+	check_export()
+}
+
+check_export :: proc() {
 	if len(os.args) < 2 {
 		fmt.eprintln("usage: kernel file.ndjson")
 		os.exit(2)
@@ -3788,6 +3823,7 @@ main :: proc() {
 	}
 	}
 	fmt.printf("\n%d accepted, %d rejected, %d skipped\n", n_ok, n_fail, n_skip)
+	mem_report()
 	if os.get_env("PROF", context.allocator) != "" {
 		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
 		fmt.eprintfln("STALE %d gc %d", lc_stale, gc_runs)
