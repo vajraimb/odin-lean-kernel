@@ -31,13 +31,15 @@ import "core:time"
 Level_Kind :: enum { Zero, Succ, Max, IMax, Param }
 Level :: struct { kind: Level_Kind, a, b: int } // Param: a = name id
 
-Expr_Kind :: enum u8 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
+Expr_Kind :: enum u32 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
 Expr :: struct {
 	hasfv:      bool,
 	kind:       Expr_Kind,
-	low:        u32,   // which loose bvars occur: bit i for index i < 31, bit 31 for any index >= 31
 	a, b, c, d: int,   // meaning depends on kind (see mk_* below)
-	lbr:        int,   // loose bvar range
+	// The two 32-bit fields share a word so the node stays 64 bytes. Making room
+	// with a one-byte `kind` instead measured about 10% slower on Init.
+	lbr:        i32,   // loose bvar range
+	low:        u32,   // which loose bvars occur: bit i for index i < 31, bit 31 for any index >= 31
 	us:         []int, // Const: level ids
 }
 
@@ -598,7 +600,9 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	return res
 }
 
-mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = i + 1}) }
+// An index past any real binder depth still has to count as loose.
+lbr_of_bvar :: proc(i: int) -> i32 { return i32(min(i + 1, int(max(i32)))) }
+mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = lbr_of_bvar(i)}) }
 mk_fvar :: proc(i: int) -> int { return add_expr(Expr{kind = .FVar, a = i}) }
 mk_sort :: proc(l: int) -> int { return add_expr(Expr{kind = .Sort, a = l}) }
 mk_const :: proc(n: int, us: []int) -> int { return add_expr(Expr{kind = .Const, a = n, us = us}) }
@@ -643,7 +647,7 @@ Inst_Key :: struct { e, v, off: int }
 
 instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 	if trace_on { pc_inst += 1; if pc_inst % 100000 == 0 { fmt.eprintfln("P inst %d", pc_inst) } }
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	k := Inst_Key{e, v, off}
 	if r, ok := lc_get(&lc_inst, e, v, off); ok do return r
 	r := instantiate_raw(e, v, off)
@@ -654,7 +658,7 @@ instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 // Lift loose bvars >= off by n. Closed terms (and terms with no such bvar) are returned as-is,
 // so the closed-substituent path stays pointer-identical to the pre-lift code.
 lift :: proc(e, n, off: int) -> int {
-	if n == 0 || exprs[e].lbr <= off do return e
+	if n == 0 || int(exprs[e].lbr) <= off do return e
 	if r, ok := lc_get(&lc_lift, e, n, off); ok do return r
 	r := lift_raw(e, n, off)
 	lc_put(&lc_lift, e, n, off, r, max(e, r))
@@ -662,7 +666,7 @@ lift :: proc(e, n, off: int) -> int {
 }
 lift_raw :: proc(e, n, off: int) -> int {
 	ex := exprs[e]
-	if ex.lbr <= off do return e
+	if int(ex.lbr) <= off do return e
 	switch ex.kind {
 	case .BVar:
 		if ex.a >= off do return mk_bvar(ex.a + n)
@@ -680,7 +684,7 @@ lift_raw :: proc(e, n, off: int) -> int {
 instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 	enter(.Instantiate)
 	ex := exprs[e]
-	if ex.lbr <= off do return e
+	if int(ex.lbr) <= off do return e
 	switch ex.kind {
 	case .BVar:
 		if ex.a == off do return v
@@ -706,7 +710,7 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 // Arguments may be open: a replacement inserted under `off` binders is lifted by `off`.
 // Closed arguments are not lifted, so that path stays pointer-identical.
 instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
 	ex := exprs[e]
 	r: int
@@ -920,7 +924,7 @@ force_thunk :: proc(th: int) -> int {
 	return r
 }
 instantiate_env :: proc(e, env, off: int) -> int {
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	tok := -(envnodes[env].id + 1)
 	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
 	ex := exprs[e]
@@ -3673,7 +3677,7 @@ check_export :: proc() {
 		if id, ok := jobj(v, "ie"); ok {
 			i := jint(id)
 			e: Expr
-			if x, ok2 := jobj(v, "bvar"); ok2 { e = Expr{kind = .BVar, a = jint(x), lbr = jint(x) + 1} }
+			if x, ok2 := jobj(v, "bvar"); ok2 { e = Expr{kind = .BVar, a = jint(x), lbr = lbr_of_bvar(jint(x))} }
 			else if x, ok2 := jobj(v, "sort"); ok2 { e = Expr{kind = .Sort, a = jint(x)} }
 			else if x, ok2 := jobj(v, "const"); ok2 {
 				nm, _ := jobj(x, "name")
