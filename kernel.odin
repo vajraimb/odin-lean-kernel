@@ -562,8 +562,7 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	// have to die together. The let/lambda bit pattern has no expression id
 	// and can be rebuilt; its cache entries die with the same generation.
 	delete(vpat_of); vpat_of = nil
-	delete(tpat_of); tpat_of = nil
-	tpat_saturated = false
+	delete(ctx_of); ctx_of = nil
 	cache_gen += 1
 	return res
 }
@@ -1679,7 +1678,7 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 // are unsound for open terms; `ctx_stamp` is part of those keys. `ctx_floor`
 // hides the outer context while a closed subterm is checked, so its bvars cannot
 // see binders it does not sit under.
-CtxEnt :: struct { ty, val, depth, saved: int, mask: u64, pat, vpat, tpat: int }
+CtxEnt :: struct { ty, val, depth, saved: int, mask: u64, pat, vpat: int }
 ictx: [dynamic]CtxEnt
 ctx_floor: int
 ctx_stamp: int = 1
@@ -1700,12 +1699,6 @@ VPat :: struct { letb: u8, val, outer: int }
 vpat_of: map[VPat]int
 next_vpat: int = 1
 val_pat: int
-// Full binder spine: type and let value. Proof irrelevance and structure
-// reduction depend on the types, so those true results key on this.
-TPat :: struct { ty, val, outer: int }
-tpat_of: map[TPat]int
-next_tpat: int = 1
-type_pat: int
 // This reduction substituted a let (zeta) or read a binder type. The result
 // stays under the stamp. A computation that did neither depends only on which
 // of its bvars are lets, not on the let values or the binder types.
@@ -1718,8 +1711,6 @@ deq_dep: bool
 type_maybe: bool
 diag_on: bool
 tree_depth, tree_min: int
-spine_max: int
-tpat_saturated: bool
 diag_deq, diag_hit, diag_raw: int
 diag_mh, diag_sh, diag_ms, diag_ss: int
 diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
@@ -1763,15 +1754,15 @@ flags_end :: proc(outer: int) -> int {
 	return f
 }
 
-// Cache key for an open term. Loose bvars are shared by index, and a closed
-// subterm raises ctx_floor without pushing, so both the stamp and the floor
-// have to participate. Closed-term caches keep using 0.
-// Stamps are not reused. Pop restores the stamp of the context we return to,
-// so two subterms checked in the same context (the shared arguments in app-lam)
-// hit the same cache key, while a later sibling binder gets a fresh stamp and
-// cannot see the previous binder's entries.
+// Cache key for an open term: the stamp of the binders it can see.
+// A stamp names a binder spine: the type and let value of every visible binder,
+// outermost first. Typing, reduction and equality of an open term read nothing
+// else from the context, so opening the same binder again (a retry with a larger
+// budget, the same lambda met twice) gets the same stamp and finds the earlier
+// results. A closed subterm starts over from the root stamp, because it cannot
+// see the binders it sits under. A stamp is never given to a second spine.
 ctx_key :: proc() -> int {
-	return ctx_stamp + (ctx_floor << 32)
+	return ctx_stamp
 }
 
 pat_intern :: proc(bit: u8) -> int {
@@ -1794,34 +1785,29 @@ vpat_intern :: proc(letb: u8, val: int) -> int {
 	return id
 }
 
-tpat_intern :: proc(ty, val: int) -> int {
-	if tpat_of == nil do tpat_of = make(map[TPat]int)
-	p := TPat{ty, val, type_pat}
-	if id, ok := tpat_of[p]; ok do return id
-	// Stop adding once the table is large. Deleting it returns the slots to the
-	// heap, which does not give the pages back, so a long declaration climbs
-	// until the process is killed. Callers must not cache under a spine id
-	// after this: new binders are left out of the id.
-	if tpat_saturated || (spine_max > 0 && len(tpat_of) >= spine_max) {
-		tpat_saturated = true
-		return type_pat
-	}
-	id := next_tpat
-	next_tpat += 1
-	tpat_of[p] = id
-	return id
+// Stamp of the spine `outer` extended by one binder. The table is keyed by
+// expression ids, so it is dropped whenever ids are dropped or slid, together
+// with every cache entry (`cache_gen`). Stamps already on the stack stay valid:
+// numbers are not handed out twice while a context is open.
+CtxKey :: struct { ty, val, outer: int }
+ctx_of: map[CtxKey]int
+ctx_intern :: proc(ty, val, outer: int) -> int {
+	if ctx_of == nil do ctx_of = make(map[CtxKey]int)
+	k := CtxKey{ty, val, outer}
+	if r, ok := ctx_of[k]; ok do return r
+	next_stamp += 1
+	ctx_of[k] = next_stamp
+	return next_stamp
 }
 
 ctx_push :: proc(ty, val: int) {
-	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp, let_mask, pat_id, val_pat, type_pat})
-	next_stamp += 1
-	ctx_stamp = next_stamp
+	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp, let_mask, pat_id, val_pat})
+	ctx_stamp = ctx_intern(ty, val, ctx_stamp)
 	bit: u64 = val >= 0 ? 1 : 0
 	let_mask = (let_mask << 1) | bit
 	pat_id = pat_intern(u8(bit))
 	if val >= 0 do val_pat = vpat_intern(1, val)
 	else do val_pat = vpat_intern(0, 0)
-	type_pat = tpat_intern(ty, val)
 }
 ctx_pop :: proc() {
 	ent := pop(&ictx)
@@ -1829,7 +1815,6 @@ ctx_pop :: proc() {
 	let_mask = ent.mask
 	pat_id = ent.pat
 	val_pat = ent.vpat
-	type_pat = ent.tpat
 }
 
 // Let/lambda pattern of the bvars e can see. ok is false when that pattern does
@@ -1912,9 +1897,9 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 		if !closed do whnf_dep = true
 		return r, true
 	}
-	saved_floor := ctx_floor
-	if closed do ctx_floor = len(ictx)
-	defer ctx_floor = saved_floor
+	saved_floor, saved_stamp := ctx_floor, ctx_stamp
+	if closed { ctx_floor = len(ictx); ctx_stamp = 1 }
+	defer { ctx_floor = saved_floor; ctx_stamp = saved_stamp }
 	wm := len(exprs)
 	// A closed term opens only its own binders. What it reads from those says
 	// nothing about the caller's context.
@@ -1925,7 +1910,7 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 	// (the fvar case above). Never store that type in the global slot.
 	if ok && exprs[res].lbr > 0 {
 		closed = false
-		ck = ctx_key()
+		ck = saved_stamp
 		tag = 1
 	}
 	if !closed do whnf_dep = true
@@ -2192,7 +2177,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if diag_on {
 		diag_deq += 1
 		if diag_deq & 0x1fffff == 0 {
-			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d tpat %d canon %d ictx %d levels %d depth %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(tpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_vpat, next_tpat)
+			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d canon %d ictx %d levels %d depth %d fuel %d stamps %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_stamp)
 		}
 	}
 	k := [2]int{min(a0, b0), max(a0, b0)}
@@ -2225,13 +2210,6 @@ def_eq :: proc(a0, b0: int) -> bool {
 		if r, ok := lc_get(&lc_defeq, -k[0] - 1, k[1], val_pat); ok {
 			if diag_on { diag_hit += 1; diag_vh += 1 }
 			zeta_hit = true
-			return r != 0
-		}
-	}
-	if ctx_floor == 0 && keyed && type_pat != 0 && !tpat_saturated {
-		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
-			if diag_on { diag_hit += 1; diag_th += 1 }
-			deq_dep = true
 			return r != 0
 		}
 	}
@@ -2273,9 +2251,6 @@ def_eq :: proc(a0, b0: int) -> bool {
 		} else if r && lz && !ld && !lw && ctx_floor == 0 && keyed {
 			if diag_on do diag_vs += 1
 			lc_put(&lc_defeq, -k[0] - 1, k[1], val_pat, 1, k[1])
-		} else if r && (ld || lw) && ctx_floor == 0 && keyed && !tpat_saturated {
-			if diag_on do diag_ts += 1
-			lc_put(&lc_defeq, k[0], -k[1] - 1, type_pat, 1, k[1])
 		} else if keyed {
 			if diag_on {
 				diag_ss += 1
@@ -3126,11 +3101,10 @@ reserve_expr_store :: proc() {
 reset_spines :: proc() {
 	delete(pat_of); pat_of = nil
 	delete(vpat_of); vpat_of = nil
-	delete(tpat_of); tpat_of = nil
-	next_pat, next_vpat, next_tpat = 1, 1, 1
-	pat_id, val_pat, type_pat = 0, 0, 0
+	delete(ctx_of); ctx_of = nil
+	next_pat, next_vpat = 1, 1
+	pat_id, val_pat = 0, 0
 	let_mask = 0
-	tpat_saturated = false
 }
 
 clear_caches :: proc() {
@@ -3492,9 +3466,6 @@ main :: proc() {
 		parts := strings.split(s, ",")
 		if n, ok := strconv.parse_int(parts[0]); ok do tree_depth = n
 		if len(parts) > 1 { if n, ok := strconv.parse_int(parts[1]); ok do tree_min = n }
-	}
-	if s := os.get_env("SPINE_MAX", context.allocator); s != "" {
-		if n, ok := strconv.parse_int(s); ok && n > 0 do spine_max = n
 	}
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
