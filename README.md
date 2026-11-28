@@ -31,12 +31,12 @@ Exports are Lean 4.36.0, lean4export 3.1.0. Each line is one run on one machine 
 | Std, 96627 declarations | 96627 accepted, 0 rejected | 559.258 s | 555.292 s | 4629724 KB |
 | Lean Kernel Arena, 138 good and 92 bad files | 138/138 good accepted, 92/92 bad rejected | | | |
 
-The Arena run used a 400 s cap per file. Init's 82.660 s is a single sample next to an earlier 103.979 s run of a previous build; that gap is not a measured speedup. Std is the first full pass of this build.
+The Arena run used a 400 s cap per file, and was repeated on this build: 138/138 good accepted, 92/92 bad rejected. Init was also repeated on this build: 58547 accepted, 0 rejected, wall 101.319 s, user 96.098 s, max RSS 1846836 KB. Both are single samples. The 82.660 s Init figure and the Std figure are from the build before the export was read as a stream. Init's 82.660 s is a single sample next to an earlier 103.979 s run of a previous build; that gap is not a measured speedup.
+
+Mathlib (Lean 4.36.0, lean4export 3.1.0, 721845 declarations, 6.3 GB) was exported and started. The process was killed at about 14.9 GB resident after 48867 accepts and 0 rejects, while checking `CommRingCat.instCreatesLimitRingCatForget₂RingHomCarrierCarrier`. That run did not finish.
 
 ## Limits
 
 - Universe levels are compared syntactically, except sorts, which use a conservative comparison. A term Lean's kernel accepts can be rejected here.
 - The definitional-equality cache is lossy. Weak-head normal forms are not reused across different binder contexts.
-- The checker reads a whole export into memory before checking. Std peaked near 4.5 GB.
-
-Mathlib has not been run.
+- Every expression from the export stays in memory. The file itself is read a line at a time. Std peaked near 4.5 GB. Mathlib did not fit in a 15 GB limit.

@@ -12,6 +12,7 @@
 package main
 
 import "base:runtime"
+import "core:bufio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:unicode/utf8"
@@ -20,6 +21,7 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:strconv"
+import "core:sys/linux"
 import "core:time"
 
 // ---------------------------------------------------------------- data
@@ -554,12 +556,14 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	}
 	gc_runs += 1
 	gc_freed += n - (next - wm)
+	release_expr_tail()
 	// Let-value and binder-type spines are keyed by expression ids. gc slides
 	// those ids, so the intern tables and every cache entry that stored one
 	// have to die together. The let/lambda bit pattern has no expression id
 	// and can be rebuilt; its cache entries die with the same generation.
 	delete(vpat_of); vpat_of = nil
 	delete(tpat_of); tpat_of = nil
+	tpat_saturated = false
 	cache_gen += 1
 	return res
 }
@@ -1043,13 +1047,16 @@ try_iota_lazy :: proc(rec_const: int, d: Decl, st_base: int, nt, nenv: ^int) -> 
 	rf := false
 	for r in d.rules do if r.ctor == exprs[mh].a { rule = r; rf = true }
 	if !rf || len(margs) != cd.nparams + rule.nfields do return false
-	// new argument list (first argument first)
-	na := make([dynamic]int, context.temp_allocator)
+	// new argument list (first argument first). Not the temp arena: a declaration
+	// can iota-reduce millions of times before free_all, and the arena keeps
+	// every list.
+	na := make([dynamic]int)
 	for i in 0 ..< d.nparams + d.nmotives + d.nminors do append(&na, arg(i))
 	for i in len(margs) - rule.nfields ..< len(margs) do append(&na, new_thunk(margs[i], -1))
 	for i in major_idx + 1 ..< nargs do append(&na, arg(i))
 	resize(&mstack, st_base)
 	for k := len(na) - 1; k >= 0; k -= 1 do append(&mstack, na[k])
+	delete(na)
 	nt^ = inst_expr_levels(rule.rhs, d.lparams, rx.us)
 	nenv^ = -1
 	return true
@@ -1724,6 +1731,8 @@ deq_dep: bool
 // other binder types, so only a `true` from this comparison is shared.
 type_maybe: bool
 diag_on: bool
+spine_max: int
+tpat_saturated: bool
 diag_deq, diag_hit, diag_raw: int
 diag_mh, diag_sh, diag_ms, diag_ss: int
 diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
@@ -1764,6 +1773,14 @@ tpat_intern :: proc(ty, val: int) -> int {
 	if tpat_of == nil do tpat_of = make(map[TPat]int)
 	p := TPat{ty, val, type_pat}
 	if id, ok := tpat_of[p]; ok do return id
+	// Stop adding once the table is large. Deleting it returns the slots to the
+	// heap, which does not give the pages back, so a long declaration climbs
+	// until the process is killed. Callers must not cache under a spine id
+	// after this: new binders are left out of the id.
+	if tpat_saturated || (spine_max > 0 && len(tpat_of) >= spine_max) {
+		tpat_saturated = true
+		return type_pat
+	}
 	id := next_tpat
 	next_tpat += 1
 	tpat_of[p] = id
@@ -2134,7 +2151,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if diag_on {
 		diag_deq += 1
 		if diag_deq & 0x1fffff == 0 {
-			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), fuel, next_vpat, next_tpat)
+			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d tpat %d canon %d ictx %d levels %d depth %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(tpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_vpat, next_tpat)
 		}
 	}
 	k := [2]int{min(a0, b0), max(a0, b0)}
@@ -2169,7 +2186,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 			return r != 0
 		}
 	}
-	if ctx_floor == 0 && keyed && type_pat != 0 {
+	if ctx_floor == 0 && keyed && type_pat != 0 && !tpat_saturated {
 		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
 			if diag_on { diag_hit += 1; diag_th += 1 }
 			return r != 0
@@ -2206,7 +2223,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 		} else if r && lz && !ld && !lw && ctx_floor == 0 && keyed {
 			if diag_on do diag_vs += 1
 			lc_put(&lc_defeq, -k[0] - 1, k[1], val_pat, 1, k[1])
-		} else if r && (ld || lw) && ctx_floor == 0 && keyed {
+		} else if r && (ld || lw) && ctx_floor == 0 && keyed && !tpat_saturated {
 			if diag_on do diag_ts += 1
 			lc_put(&lc_defeq, k[0], -k[1] - 1, type_pat, 1, k[1])
 		} else if keyed {
@@ -3012,6 +3029,42 @@ purge :: proc() {
 	// generation just moved, and the context stack is empty between decls, so
 	// the ids can start over instead of retaining every proof's binders.
 	if len(ictx) == 0 do reset_spines()
+	release_expr_tail()
+}
+
+// The expression table doubles when it grows, and a shrunk length does not
+// return those pages. Either one holds a multi-gigabyte export resident.
+// The capacity is reserved once when STORE_CAP is set; pages past the live
+// length are given back either way.
+drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
+	if ptr == nil || capacity <= length || length < 0 do return
+	page := uintptr(4096)
+	base := uintptr(ptr)
+	start := base + uintptr(length * elem)
+	start = (start + page - 1) & ~(page - 1)
+	end := base + uintptr(capacity * elem)
+	if start >= end do return
+	_ = linux.madvise(rawptr(start), uint(end - start), .DONTNEED)
+}
+
+release_expr_tail :: proc() {
+	drop_tail(raw_data(exprs[:]), size_of(Expr), len(exprs), cap(exprs))
+	drop_tail(raw_data(born[:]), size_of(u32), len(born), cap(born))
+	drop_tail(raw_data(hc_next[:]), size_of(int), len(hc_next), cap(hc_next))
+}
+
+reserve_expr_store :: proc() {
+	s := os.get_env("STORE_CAP", context.allocator)
+	if s == "" do return
+	n, ok := strconv.parse_int(s)
+	if !ok || n <= 0 do return
+	reserve(&exprs, n)
+	reserve(&born, n)
+	reserve(&hc_next, n)
+	if cap(exprs) < n || cap(born) < n || cap(hc_next) < n {
+		fmt.eprintln("cannot reserve expression table")
+		os.exit(2)
+	}
 }
 
 reset_spines :: proc() {
@@ -3021,6 +3074,7 @@ reset_spines :: proc() {
 	next_pat, next_vpat, next_tpat = 1, 1, 1
 	pat_id, val_pat, type_pat = 0, 0, 0
 	let_mask = 0
+	tpat_saturated = false
 }
 
 clear_caches :: proc() {
@@ -3325,16 +3379,46 @@ set_at :: proc(arr: ^[dynamic]$T, i: int, v: T) {
 	arr[i] = v
 }
 
+// One export line. A short line aliases the reader buffer and is only valid until
+// the next call. A line longer than the buffer is copied into the temp allocator.
+next_export_line :: proc(r: ^bufio.Reader) -> (line: string, done: bool) {
+	frag, e := bufio.reader_read_slice(r, '\n')
+	if e == .Buffer_Full {
+		full: [dynamic]byte
+		full.allocator = context.temp_allocator
+		append(&full, ..frag)
+		for {
+			frag, e = bufio.reader_read_slice(r, '\n')
+			append(&full, ..frag)
+			if e != .Buffer_Full do break
+		}
+		if e != nil && e != .EOF {
+			fmt.eprintln("cannot read file")
+			os.exit(2)
+		}
+		return strings.clone(string(full[:]), context.temp_allocator), false
+	}
+	if e == .EOF && len(frag) == 0 do return "", true
+	if e != nil && e != .EOF {
+		fmt.eprintln("cannot read file")
+		os.exit(2)
+	}
+	return string(frag), false
+}
+
 main :: proc() {
 	if len(os.args) < 2 {
 		fmt.eprintln("usage: kernel file.ndjson")
 		os.exit(2)
 	}
-	data, err := os.read_entire_file(os.args[1], context.allocator)
-	if err != nil {
+	f, ferr := os.open(os.args[1])
+	if ferr != nil {
 		fmt.eprintln("cannot read file")
 		os.exit(2)
 	}
+	rd: bufio.Reader
+	bufio.reader_init(&rd, os.to_reader(f), 1 << 20)
+	reserve_expr_store()
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
@@ -3348,17 +3432,42 @@ main :: proc() {
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	diag_on = os.get_env("DIAG", context.allocator) != ""
+	if s := os.get_env("SPINE_MAX", context.allocator); s != "" {
+		if n, ok := strconv.parse_int(s); ok && n > 0 do spine_max = n
+	}
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
 	// pass 0 loads names/levels/expressions; pass 1 checks the declarations, so that the
-	// ids used by the export are never mixed with nodes the kernel creates while checking
+	// ids used by the export are never mixed with nodes the kernel creates while checking.
+	// Lines are streamed. The declaration text (small next to the expression table) is
+	// kept for pass 1; the raw file is not.
 	decl_lines := make([dynamic]string)
+	text: string
+	decls: []string
 	for pass in 0 ..< 2 {
-	if pass == 1 { delete(data); data = nil; wm_exprs, wm_levels, wm_fv = len(exprs), len(levels), len(fv_type) }
-	text := pass == 0 ? string(data) : strings.join(decl_lines[:], "\n")
-	for line in strings.split_lines_iterator(&text) {
-		if len(strings.trim_space(line)) == 0 do continue
+	di := 0
+	if pass == 1 {
+		bufio.reader_destroy(&rd)
+		os.close(f)
+		wm_exprs, wm_levels, wm_fv = len(exprs), len(levels), len(fv_type)
+		text = strings.join(decl_lines[:], "\n")
+		for s in decl_lines do delete(s)
+		clear(&decl_lines)
+		decls = strings.split_lines(text)
+	}
+	for {
 		if pass == 0 do free_all(context.temp_allocator)
+		line: string
+		if pass == 0 {
+			raw, done := next_export_line(&rd)
+			if done do break
+			line = strings.trim_right(raw, "\r\n")
+		} else {
+			if di >= len(decls) do break
+			line = decls[di]
+			di += 1
+		}
+		if len(strings.trim_space(line)) == 0 do continue
 		v, perr := json.parse(transmute([]byte)line, json.DEFAULT_SPECIFICATION, true, context.temp_allocator)
 		if perr != .None {
 			fmt.eprintln("json error:", perr)
