@@ -12,6 +12,7 @@
 package main
 
 import "base:runtime"
+import "base:intrinsics"
 import "core:bufio"
 import "core:encoding/json"
 import "core:fmt"
@@ -29,10 +30,11 @@ import "core:time"
 Level_Kind :: enum { Zero, Succ, Max, IMax, Param }
 Level :: struct { kind: Level_Kind, a, b: int } // Param: a = name id
 
-Expr_Kind :: enum u32 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
+Expr_Kind :: enum u8 { BVar, FVar, Sort, Const, App, Lam, Pi, Let, MData, Proj, NatLit, StrLit, Unsupported }
 Expr :: struct {
 	hasfv:      bool,
 	kind:       Expr_Kind,
+	low:        u32,   // which loose bvars occur: bit i for index i < 31, bit 31 for any index >= 31
 	a, b, c, d: int,   // meaning depends on kind (see mk_* below)
 	lbr:        int,   // loose bvar range
 	us:         []int, // Const: level ids
@@ -461,6 +463,21 @@ hc_insert :: proc(id: int, h: u64) {
 	hc_count += 1
 }
 
+// Loose bvars of a term as a bit set. Going under a binder shifts the set down;
+// the top bit stays, since an index >= 31 may still be >= 31 one binder out.
+low_under :: proc(x: u32) -> u32 { return (x >> 1) | (x & 0x8000_0000) }
+expr_low :: proc(e: ^Expr) -> u32 {
+	#partial switch e.kind {
+	case .BVar: return e.a < 31 ? u32(1) << uint(e.a) : 0x8000_0000
+	case .App: return exprs[e.a].low | exprs[e.b].low
+	case .Lam, .Pi: return exprs[e.b].low | low_under(exprs[e.c].low)
+	case .Let: return exprs[e.b].low | exprs[e.c].low | low_under(exprs[e.d].low)
+	case .Proj: return exprs[e.c].low
+	case .MData: return exprs[e.a].low
+	}
+	return 0
+}
+
 add_calls: int
 add_expr :: proc(e: Expr) -> int {
 	enter(.AddExpr)
@@ -477,6 +494,7 @@ add_expr :: proc(e: Expr) -> int {
 	case .Proj: e.hasfv = exprs[e.c].hasfv
 	case .MData: e.hasfv = exprs[e.a].hasfv
 	}
+	e.low = expr_low(&e)
 	append(&exprs, e)
 	if len(born) < len(exprs) do resize(&born, len(exprs))
 	born[len(exprs) - 1] = u32(stamp_ctr)
@@ -2168,6 +2186,44 @@ def_eq_under :: proc(ty, lhs, rhs: int) -> bool {
 	return r
 }
 
+// Number of innermost binders that neither term mentions. A free variable's
+// recorded type may mention any of them, so such a term keeps them all.
+unused_binders :: proc(a, b: int) -> int {
+	x := exprs[a].low | exprs[b].low
+	if x == 0 || exprs[a].hasfv || exprs[b].hasfv do return 0
+	return min(int(intrinsics.count_trailing_zeros(x)), len(ictx) - ctx_floor)
+}
+
+// Compare two terms that do not mention the m innermost binders, in the context
+// without those binders. Equality does not depend on a variable neither side
+// mentions, so the answer is the same, and it is found again under any other
+// inner binders. A kernel with named free variables gets this for free: the
+// outer variables are the same objects at every depth. With de Bruijn indices
+// they are renumbered at every binder, so `inst₁ =?= inst₂` under `a`, under
+// `a b`, and under `a b c` were three unrelated questions, each asked again
+// for every new binder type.
+strip_stack: [dynamic]CtxEnt
+no_strip: bool
+diag_strip: int
+def_eq_stripped :: proc(a0, b0, m: int) -> bool {
+	a1 := lift(a0, -m, 0)
+	b1 := lift(b0, -m, 0)
+	n := len(ictx)
+	st_stamp, st_mask, st_pat, st_vpat := ctx_stamp, let_mask, pat_id, val_pat
+	first := ictx[n - m]
+	for i in n - m ..< n do append(&strip_stack, ictx[i])
+	resize(&ictx, n - m)
+	ctx_stamp, let_mask, pat_id, val_pat = first.saved, first.mask, first.pat, first.vpat
+	idepth -= m
+	r := def_eq(a1, b1)
+	idepth += m
+	base := len(strip_stack) - m
+	for i in 0 ..< m do append(&ictx, strip_stack[base + i])
+	resize(&strip_stack, base)
+	ctx_stamp, let_mask, pat_id, val_pat = st_stamp, st_mask, st_pat, st_vpat
+	return r
+}
+
 def_eq :: proc(a0, b0: int) -> bool {
 	if def_eq_depth == 0 do nat_unfolds = 0
 	def_eq_depth += 1
@@ -2177,6 +2233,7 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if diag_on {
 		diag_deq += 1
 		if diag_deq & 0x1fffff == 0 {
+			fmt.eprintfln("STRIP %d", diag_strip)
 			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d canon %d ictx %d levels %d depth %d fuel %d stamps %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_stamp)
 		}
 	}
@@ -2224,7 +2281,13 @@ def_eq :: proc(a0, b0: int) -> bool {
 	deq_dep, whnf_dep, zeta_hit, type_maybe = false, false, false, false
 	wm := len(exprs)
 	tree_f0 := fuel
-	r := def_eq_raw(a0, b0)
+	r: bool
+	if m := unused_binders(a0, b0); m > 0 && !no_strip {
+		if diag_on do diag_strip += 1
+		r = def_eq_stripped(a0, b0, m)
+	} else {
+		r = def_eq_raw(a0, b0)
+	}
 	if tree_depth > 0 && def_eq_depth <= tree_depth && fuel - tree_f0 >= tree_min {
 		fmt.eprintfln("TREE %d fuel %d r %v ictx %d ab %v  %s  =?=  %s", def_eq_depth, fuel - tree_f0, r, len(ictx), aborted, expr_str(a0, 4), expr_str(b0, 4))
 	}
@@ -3462,6 +3525,7 @@ main :: proc() {
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	diag_on = os.get_env("DIAG", context.allocator) != ""
+	no_strip = os.get_env("NOSTRIP", context.allocator) != ""
 	if s := os.get_env("TREE", context.allocator); s != "" {
 		parts := strings.split(s, ",")
 		if n, ok := strconv.parse_int(parts[0]); ok do tree_depth = n
@@ -3591,6 +3655,7 @@ main :: proc() {
 				fmt.eprintln("malformed export: forward/invalid expr reference at id", i)
 				os.exit(2)
 			}
+			e.low = expr_low(&e)
 			set_at(&exprs, i, e)
 			hc_register(i)
 			continue
