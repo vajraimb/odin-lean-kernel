@@ -408,8 +408,11 @@ decl_start_exprs: int
 
 // Hash-consing table: chained buckets over expression ids. Chains run from the newest to the
 // oldest id, so dropping the newest expressions only pops chain heads.
-hc_buckets: []int       // head id of each chain, -1 if empty
-hc_next: [dynamic]int   // next id in the chain; -2 = not registered
+// Ids are 32-bit here: with one slot per expression of a 100M-node export, 8-byte
+// links were 3 GB of a 15 GB machine.
+hc_buckets: []i32       // head id of each chain, -1 if empty
+hc_next: [dynamic]i32   // next id in the chain; -2 = not registered
+HC_DENSE :: 1 << 26     // from this many buckets on, fill to one expression per bucket
 hc_count: int
 
 expr_hash :: proc(e: ^Expr) -> u64 {
@@ -433,33 +436,40 @@ expr_same :: proc(x, y: ^Expr) -> bool {
 
 hc_find :: proc(e: ^Expr, h: u64) -> int {
 	if len(hc_buckets) == 0 do return -1
-	i := hc_buckets[int(h) & (len(hc_buckets) - 1)]
+	i := int(hc_buckets[int(h) & (len(hc_buckets) - 1)])
 	for i >= 0 {
 		if expr_same(&exprs[i], e) do return i
-		i = hc_next[i]
+		i = int(hc_next[i])
 	}
 	return -1
 }
 
 hc_insert :: proc(id: int, h: u64) {
-	if hc_count * 2 >= len(hc_buckets) {
+	if id >= int(max(i32)) {
+		fmt.eprintln("expression table is full (2^31 nodes)")
+		os.exit(2)
+	}
+	// Half full while the table is small. A large table is the export itself,
+	// where doubling costs a gigabyte; chains of length one or two are cheaper.
+	full := len(hc_buckets) < HC_DENSE ? hc_count * 2 >= len(hc_buckets) : hc_count >= len(hc_buckets)
+	if full {
 		n := max(1 << 16, len(hc_buckets) * 2)
 		delete(hc_buckets)
-		hc_buckets = make([]int, n)
+		hc_buckets = make([]i32, n)
 		for j in 0 ..< n do hc_buckets[j] = -1
 		for j in 0 ..< len(exprs) {
 			if j < len(hc_next) && hc_next[j] != -2 && j != id {
 				hh := expr_hash(&exprs[j])
 				b := int(hh) & (n - 1)
 				hc_next[j] = hc_buckets[b]
-				hc_buckets[b] = j
+				hc_buckets[b] = i32(j)
 			}
 		}
 	}
 	b := int(h) & (len(hc_buckets) - 1)
 	for len(hc_next) <= id do append(&hc_next, -2)
 	hc_next[id] = hc_buckets[b]
-	hc_buckets[b] = id
+	hc_buckets[b] = i32(id)
 	hc_count += 1
 }
 
@@ -3144,7 +3154,7 @@ drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
 release_expr_tail :: proc() {
 	drop_tail(raw_data(exprs[:]), size_of(Expr), len(exprs), cap(exprs))
 	drop_tail(raw_data(born[:]), size_of(u32), len(born), cap(born))
-	drop_tail(raw_data(hc_next[:]), size_of(int), len(hc_next), cap(hc_next))
+	drop_tail(raw_data(hc_next[:]), size_of(i32), len(hc_next), cap(hc_next))
 }
 
 reserve_expr_store :: proc() {
