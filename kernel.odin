@@ -3157,15 +3157,21 @@ release_expr_tail :: proc() {
 	drop_tail(raw_data(hc_next[:]), size_of(i32), len(hc_next), cap(hc_next))
 }
 
-reserve_expr_store :: proc() {
-	s := os.get_env("STORE_CAP", context.allocator)
-	if s == "" do return
-	n, ok := strconv.parse_int(s)
-	if !ok || n <= 0 do return
+// STORE_CAP=n reserves n expressions. Without it, an export of a gigabyte or
+// more gets a reservation from its size: an expression line is about 59 bytes,
+// so size/40 leaves room for what checking adds. Small exports reserve nothing.
+reserve_expr_store :: proc(file_size: i64) {
+	n := 0
+	asked := false
+	if s := os.get_env("STORE_CAP", context.allocator); s != "" {
+		if v, ok := strconv.parse_int(s); ok && v > 0 { n = v; asked = true }
+	}
+	if n == 0 && file_size >= 1 << 30 do n = int(file_size / 40)
+	if n == 0 do return
 	reserve(&exprs, n)
 	reserve(&born, n)
 	reserve(&hc_next, n)
-	if cap(exprs) < n || cap(born) < n || cap(hc_next) < n {
+	if asked && (cap(exprs) < n || cap(born) < n || cap(hc_next) < n) {
 		fmt.eprintln("cannot reserve expression table")
 		os.exit(2)
 	}
@@ -3521,7 +3527,8 @@ main :: proc() {
 	}
 	rd: bufio.Reader
 	bufio.reader_init(&rd, os.to_reader(f), 1 << 20)
-	reserve_expr_store()
+	fsize, _ := os.file_size(f)
+	reserve_expr_store(fsize)
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
