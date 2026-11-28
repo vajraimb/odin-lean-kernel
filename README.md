@@ -29,10 +29,10 @@ Exports are Lean 4.36.0, lean4export 3.1.0. Each line is one run of this build o
 | --- | --- | --- | --- | --- |
 | Init, 58547 declarations | 58547 accepted, 0 rejected | 88.620 s | 85.070 s | 1753068 KB |
 | Std, 96627 declarations | 96627 accepted, 0 rejected | 494.964 s | 483.292 s | 4408236 KB |
-| Mathlib, 721845 declarations, 6.3 GB | 721845 accepted, 0 rejected | 7050.530 s | 6904.301 s | 12774036 KB |
+| Mathlib, 721845 declarations, 6.3 GB | 721845 accepted, 0 rejected | 6437.037 s | 6289.429 s | 12773972 KB |
 | Lean Kernel Arena, 138 good and 92 bad files | 138/138 good accepted, 92/92 bad rejected | | | |
 
-Init ran with nothing else on the machine. Std ran next to the Arena run, which used the other cores and a 400 s cap per file. The Mathlib run is from the commit before the last one on this build (the last one only changes the layout of an expression node) and shared the machine with Init timing runs on another core.
+Init and Mathlib ran with nothing else on the machine. Std ran next to the Arena run, which used the other cores and a 400 s cap per file.
 
 Against the previous build, Init was timed three times each, alternating, while another job held a different core: user time 89.78 s before (sd 0.89) and 94.47 s now (sd 2.16). Init is about 5% slower. Std and Mathlib have no such comparison; their figures are single samples.
 
