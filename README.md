@@ -23,20 +23,32 @@ The checker uses a deep call stack, so `ulimit -s unlimited` is required.
 
 ## What has been checked
 
-Exports are Lean 4.36.0, lean4export 3.1.0. Each line is one run on one machine (`taskset -c 0`), not a repeated benchmark.
+Exports are Lean 4.36.0, lean4export 3.1.0. Each line is one run of this build on one core (`taskset -c 0`) of a 4-core machine with a 15 GB memory limit, not a repeated benchmark.
 
 | Input | Result | Wall | User | Max RSS |
 | --- | --- | --- | --- | --- |
-| Init, 58547 declarations | 58547 accepted, 0 rejected | 82.660 s | 81.064 s | 1851972 KB |
-| Std, 96627 declarations | 96627 accepted, 0 rejected | 559.258 s | 555.292 s | 4629724 KB |
+| Init, 58547 declarations | 58547 accepted, 0 rejected | 88.620 s | 85.070 s | 1753068 KB |
+| Std, 96627 declarations | 96627 accepted, 0 rejected | 494.964 s | 483.292 s | 4408236 KB |
+| Mathlib, 721845 declarations, 6.3 GB | 721845 accepted, 0 rejected | 7050.530 s | 6904.301 s | 12774036 KB |
 | Lean Kernel Arena, 138 good and 92 bad files | 138/138 good accepted, 92/92 bad rejected | | | |
 
-The Arena run used a 400 s cap per file, and was repeated on this build: 138/138 good accepted, 92/92 bad rejected. Init was also repeated on this build: 58547 accepted, 0 rejected, wall 101.319 s, user 96.098 s, max RSS 1846836 KB. Both are single samples. The 82.660 s Init figure and the Std figure are from the build before the export was read as a stream. Init's 82.660 s is a single sample next to an earlier 103.979 s run of a previous build; that gap is not a measured speedup.
+Init ran with nothing else on the machine. Std ran next to the Arena run, which used the other cores and a 400 s cap per file. The Mathlib run is from the commit before the last one on this build (the last one only changes the layout of an expression node) and shared the machine with Init timing runs on another core.
 
-Mathlib (Lean 4.36.0, lean4export 3.1.0, 721845 declarations, 6.3 GB) was exported and started. The process was killed at about 14.9 GB resident after 48867 accepts and 0 rejects, while checking `CommRingCat.instCreatesLimitRingCatForget₂RingHomCarrierCarrier`. That run did not finish.
+Against the previous build, Init was timed three times each, alternating, while another job held a different core: user time 89.78 s before (sd 0.89) and 94.47 s now (sd 2.16). Init is about 5% slower. Std and Mathlib have no such comparison; their figures are single samples.
+
+The previous build did not finish Mathlib: it was killed at about 14.9 GB after 48867 accepts, inside `CommRingCat.instCreatesLimitRingCatForget₂RingHomCarrierCarrier`. On an export of that declaration and its 2247 dependencies, the previous build had not finished after 150 s; this build checks all of them in 4.2 s.
+
+## Tests
+
+```
+python3 tests/run.py ./kernel
+```
+
+`tests/accept` holds exports that must be accepted and `tests/reject` exports that must be rejected. Each reject file ends in a false theorem, such as `Eq' T.b T.a` for a type `T` with two constructors, that earlier builds accepted: an equality proved under one set of binders was reused under another. `tests/accept/quot-lift-held-in-field` is a Lean export that earlier builds rejected.
 
 ## Limits
 
 - Universe levels are compared syntactically, except sorts, which use a conservative comparison. A term Lean's kernel accepts can be rejected here.
-- The definitional-equality cache is lossy. Weak-head normal forms are not reused across different binder contexts.
-- Every expression from the export stays in memory. The file itself is read a line at a time. Std peaked near 4.5 GB. Mathlib did not fit in a 15 GB limit.
+- The definitional-equality cache is lossy: an entry can be overwritten and the work done again.
+- Every expression from the export stays in memory. The file itself is read a line at a time. Std peaked near 4.4 GB and Mathlib near 12.8 GB, so Mathlib needs a machine with more than that free.
+- An export of a gigabyte or more gets its expression table reserved from the file size. `STORE_CAP=n` overrides the number of expressions reserved.
