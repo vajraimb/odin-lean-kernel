@@ -1731,6 +1731,7 @@ deq_dep: bool
 // other binder types, so only a `true` from this comparison is shared.
 type_maybe: bool
 diag_on: bool
+tree_depth, tree_min: int
 spine_max: int
 tpat_saturated: bool
 diag_deq, diag_hit, diag_raw: int
@@ -2201,7 +2202,11 @@ def_eq :: proc(a0, b0: int) -> bool {
 	saved_d, saved_w, saved_z, saved_t := deq_dep, whnf_dep, zeta_hit, type_maybe
 	deq_dep, whnf_dep, zeta_hit, type_maybe = false, false, false, false
 	wm := len(exprs)
+	tree_f0 := fuel
 	r := def_eq_raw(a0, b0)
+	if tree_depth > 0 && def_eq_depth <= tree_depth && fuel - tree_f0 >= tree_min {
+		fmt.eprintfln("TREE %d fuel %d r %v ictx %d ab %v  %s  =?=  %s", def_eq_depth, fuel - tree_f0, r, len(ictx), aborted, expr_str(a0, 4), expr_str(b0, 4))
+	}
 	// Snapshot before restoring the caller. The counters have to see this
 	// frame's flags, not the parent's.
 	ld, lz, lw, lt := deq_dep, zeta_hit, whnf_dep, type_maybe
@@ -3432,6 +3437,11 @@ main :: proc() {
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	diag_on = os.get_env("DIAG", context.allocator) != ""
+	if s := os.get_env("TREE", context.allocator); s != "" {
+		parts := strings.split(s, ",")
+		if n, ok := strconv.parse_int(parts[0]); ok do tree_depth = n
+		if len(parts) > 1 { if n, ok := strconv.parse_int(parts[1]); ok do tree_min = n }
+	}
 	if s := os.get_env("SPINE_MAX", context.allocator); s != "" {
 		if n, ok := strconv.parse_int(s); ok && n > 0 do spine_max = n
 	}
