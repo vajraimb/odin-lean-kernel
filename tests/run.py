@@ -7,6 +7,10 @@ Each reject file ends with a false theorem that a kernel accepts only if it
 reuses an equality cached under other binders. The accept file of the same
 name is the Lean export it was edited from.
 
+An accept file without a reject twin is a Lean export this kernel once
+rejected: quot-lift-held-in-field has `Quot.lift f h` stored in a structure
+field and applied to a `Quot.mk` after projection.
+
 usage: tests/run.py <kernel>
 """
 import glob, os, subprocess, sys

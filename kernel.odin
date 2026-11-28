@@ -1164,6 +1164,13 @@ whnf_core_eager :: proc(e: int) -> int {
 				if h == head do return cur
 				r := h
 				for a in args do r = mk_app(r, a)
+				// The head reduced to an application, e.g. a structure field
+				// that holds `Quot.lift f h` or a recursor missing its major.
+				// With these arguments it may be a redex now.
+				if exprs[h].kind == .App {
+					cur = r
+					continue
+				}
 				return r
 			}
 		case: return cur
