@@ -3146,7 +3146,9 @@ drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
 	base := uintptr(ptr)
 	start := base + uintptr(length * elem)
 	start = (start + page - 1) & ~(page - 1)
-	end := base + uintptr(capacity * elem)
+	// Whole pages only. madvise rounds the length up, and the page that holds
+	// the end of this array also holds the start of the next heap block.
+	end := (base + uintptr(capacity * elem)) & ~(page - 1)
 	if start >= end do return
 	_ = linux.madvise(rawptr(start), uint(end - start), .DONTNEED)
 }
