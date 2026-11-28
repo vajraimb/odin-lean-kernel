@@ -72,7 +72,9 @@ Kernel_Error :: struct { msg: string }
 failure: Maybe(string) // first error of the current declaration
 
 fail :: proc(format: string, args: ..any) -> bool {
-	if failure == nil do failure = fmt.aprintf(format, ..args)
+	// The message is printed before the declaration's temp memory is released.
+	// Most failures are speculative (a rule that did not apply) and are dropped.
+	if failure == nil do failure = fmt.tprintf(format, ..args)
 	return false
 }
 
@@ -162,10 +164,10 @@ level_str :: proc(l: int) -> string {
 	lv := levels[l]
 	switch lv.kind {
 	case .Zero:  return "0"
-	case .Succ:  return fmt.aprintf("S(%s)", level_str(lv.a))
-	case .Max:   return fmt.aprintf("max(%s,%s)", level_str(lv.a), level_str(lv.b))
-	case .IMax:  return fmt.aprintf("imax(%s,%s)", level_str(lv.a), level_str(lv.b))
-	case .Param: return fmt.aprintf("%s", names[lv.a])
+	case .Succ:  return fmt.tprintf("S(%s)", level_str(lv.a))
+	case .Max:   return fmt.tprintf("max(%s,%s)", level_str(lv.a), level_str(lv.b))
+	case .IMax:  return fmt.tprintf("imax(%s,%s)", level_str(lv.a), level_str(lv.b))
+	case .Param: return fmt.tprintf("%s", names[lv.a])
 	}
 	return "?"
 }
@@ -202,7 +204,7 @@ collect_terms :: proc(l: int, k: int, out: ^[dynamic]Term) {
 		} else if level_equiv(lv.a, lv.b) {
 			collect_terms(lv.a, k, out)
 		} else {
-			append(out, Term{fmt.aprintf("imax(%s,%s)", canon_level(lv.a), canon_level(lv.b)), k})
+			append(out, Term{fmt.tprintf("imax(%s,%s)", canon_level(lv.a), canon_level(lv.b)), k})
 		}
 	}
 }
@@ -320,7 +322,7 @@ canon_level_raw :: proc(l: int) -> string {
 	defer delete(m)
 	keys := make([dynamic]string)
 	defer delete(keys)
-	for k, v in m do append(&keys, fmt.aprintf("%s+%d", k, v))
+	for k, v in m do append(&keys, fmt.tprintf("%s+%d", k, v))
 	slice.sort(keys[:])
 	return strings.join(keys[:], "|")
 }
@@ -768,9 +770,13 @@ inst_expr_levels_raw :: proc(e: int, ps: []int, us: []int) -> int {
 	switch ex.kind {
 	case .Sort: return mk_sort(level_inst(ex.a, ps, us))
 	case .Const:
-		nus := make([]int, len(ex.us))
+		// The node keeps the interned list. A fresh slice per call was never
+		// freed: not when the constant already existed, and not at purge.
+		if len(ex.us) == 0 do return e
+		nus := make([]int, len(ex.us), context.temp_allocator)
 		for u, i in ex.us do nus[i] = level_inst(u, ps, us)
-		return mk_const(ex.a, nus)
+		id := us_id(nus) // may grow us_tab; index it afterwards
+		return mk_const(ex.a, us_tab[id - 1])
 	case .App: return mk_app(inst_expr_levels(ex.a, ps, us), inst_expr_levels(ex.b, ps, us))
 	case .Lam, .Pi: return mk_binder(ex.kind, ex.a, inst_expr_levels(ex.b, ps, us), inst_expr_levels(ex.c, ps, us))
 	case .Let: return mk_let(ex.a, inst_expr_levels(ex.b, ps, us), inst_expr_levels(ex.c, ps, us), inst_expr_levels(ex.d, ps, us))
@@ -807,23 +813,23 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 	if depth > 6 do return "…"
 	ex := exprs[e]
 	switch ex.kind {
-	case .BVar: return fmt.aprintf("#%d", ex.a)
-	case .FVar: return fmt.aprintf("%s", names[fv_name[ex.a]])
-	case .Sort: return fmt.aprintf("Sort %s", level_str(ex.a))
+	case .BVar: return fmt.tprintf("#%d", ex.a)
+	case .FVar: return fmt.tprintf("%s", names[fv_name[ex.a]])
+	case .Sort: return fmt.tprintf("Sort %s", level_str(ex.a))
 	case .Const: return names[ex.a]
-	case .App: return fmt.aprintf("(%s %s)", expr_str(ex.a, depth + 1), expr_str(ex.b, depth + 1))
-	case .Lam: return fmt.aprintf("(fun %s : %s => %s)", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
-	case .Pi: return fmt.aprintf("(%s : %s) -> %s", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
-	case .Let: return fmt.aprintf("(let %s := %s; %s)", names[ex.a], expr_str(ex.c, depth + 1), expr_str(ex.d, depth + 1))
+	case .App: return fmt.tprintf("(%s %s)", expr_str(ex.a, depth + 1), expr_str(ex.b, depth + 1))
+	case .Lam: return fmt.tprintf("(fun %s : %s => %s)", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
+	case .Pi: return fmt.tprintf("(%s : %s) -> %s", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
+	case .Let: return fmt.tprintf("(let %s := %s; %s)", names[ex.a], expr_str(ex.c, depth + 1), expr_str(ex.d, depth + 1))
 	case .MData: return expr_str(ex.a, depth)
-	case .Proj: return fmt.aprintf("%s.%d", expr_str(ex.c, depth + 1), ex.b)
+	case .Proj: return fmt.tprintf("%s.%d", expr_str(ex.c, depth + 1), ex.b)
 	case .NatLit:
 		t: big.Int
 		defer big.int_destroy(&t)
 		nat_from_bytes(&t, lit_strs[ex.a])
 		str, _ := big.int_itoa_string(&t)
 		return str
-	case .StrLit: return fmt.aprintf("%q", lit_strs[ex.a])
+	case .StrLit: return fmt.tprintf("%q", lit_strs[ex.a])
 	case .Unsupported: return "<unsupported>"
 	}
 	return "?"
@@ -3127,6 +3133,7 @@ purge :: proc() {
 	resize(&fv_name, wm_fv)
 	resize(&fv_depth, wm_fv)
 	cache_gen += 1
+	for _, v in canon_memo do delete(v)
 	delete(canon_memo); canon_memo = nil
 	delete(sem_memo); sem_memo = nil
 	// The spine tables key on expression ids from this declaration. The cache
