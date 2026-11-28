@@ -816,13 +816,9 @@ whnf_core :: proc(e: int) -> int {
 	// fire, so the result is shared across lambda binders unless this step reads
 	// a binder type (whnf_dep). A let, or that type-sensitive step, keeps the stamp.
 	if r, ok := whnf_load(&lc_whnfc, e, 0, 1); ok do return r
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	r := whnf_core_raw(e)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
-	whnf_save(&lc_whnfc, e, r, 0, 1, sens)
+	whnf_save(&lc_whnfc, e, r, 0, 1, flags_end(outer))
 	return r
 }
 
@@ -1233,28 +1229,21 @@ unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	// A refused unfold is not cached: the counter is per top-level def_eq, so the
 	// same term can unfold again on the next comparison.
 	if nat_unfold_capped(names[hx.a]) && (exprs[e].lbr > 0 || exprs[e].hasfv) {
-		saved_d, saved_z := whnf_dep, zeta_hit
-		whnf_dep, zeta_hit = false, false
+		outer := flags_begin()
 		r, ok2 := reduce_nat(e)
-		sens := whnf_dep || zeta_hit
-		whnf_dep = saved_d || whnf_dep
-		zeta_hit = saved_z || zeta_hit
+		fl := flags_end(outer)
 		if ok2 {
-			whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+			whnf_save(&lc_whnfc, e, r, 2, 3, fl)
 			return r, true
 		}
 		if nat_unfolds >= NAT_DEFEQ_UNFOLD_CAP do return e, false
 		nat_unfolds += 1
 	}
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	r := inst_expr_levels(d.value, d.lparams, hx.us)
 	for a in args do r = mk_app(r, a)
 	r = whnf_core(r)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
-	whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+	whnf_save(&lc_whnfc, e, r, 2, 3, flags_end(outer))
 	return r, true
 }
 
@@ -1271,15 +1260,12 @@ head_height :: proc(e: int) -> int {
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
 	if r, ok := whnf_load(&lc_whnf, e, 0, 1); ok do return r
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	wm := len(exprs)
 	r := whnf_raw(e)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
+	fl := flags_end(outer)
 	if len(exprs) - wm > gc_min do r = gc_region(wm, r)
-	whnf_save(&lc_whnf, e, r, 0, 1, sens)
+	whnf_save(&lc_whnf, e, r, 0, 1, fl)
 	return r
 }
 
@@ -1739,6 +1725,44 @@ diag_mh, diag_sh, diag_ms, diag_ss: int
 diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
 diag_ph, diag_ps, diag_vh, diag_vs, diag_th, diag_ts: int
 
+// The four flags as one word, so a cached result can carry what it read.
+// A result stored under the stamp is only valid in this context. A caller that
+// reuses it has read the context just as much as the computation that made it,
+// so every hit puts the flags back. Without this the caller looked clean and
+// its own result was shared with binders of other types or other let values.
+F_DEQ   :: 1
+F_WHNF  :: 2
+F_ZETA  :: 4
+F_MAYBE :: 8
+F_SHIFT :: 48
+F_MASK  :: (1 << F_SHIFT) - 1
+flags_get :: proc() -> int {
+	f := 0
+	if deq_dep do f |= F_DEQ
+	if whnf_dep do f |= F_WHNF
+	if zeta_hit do f |= F_ZETA
+	if type_maybe do f |= F_MAYBE
+	return f
+}
+flags_set :: proc(f: int) {
+	deq_dep = f & F_DEQ != 0
+	whnf_dep = f & F_WHNF != 0
+	zeta_hit = f & F_ZETA != 0
+	type_maybe = f & F_MAYBE != 0
+}
+// Start a frame with clean flags; returns the caller's.
+flags_begin :: proc() -> int {
+	f := flags_get()
+	flags_set(0)
+	return f
+}
+// End a frame: returns what this frame read and gives the caller both.
+flags_end :: proc(outer: int) -> int {
+	f := flags_get()
+	flags_set(outer | f)
+	return f
+}
+
 // Cache key for an open term. Loose bvars are shared by index, and a closed
 // subterm raises ctx_floor without pushing, so both the stamp and the floor
 // have to participate. Closed-term caches keep using 0.
@@ -1839,17 +1863,19 @@ wide_pat :: proc(e: int) -> bool {
 // cached separately, where the flags are checked on the boolean.
 whnf_load :: proc(table: ^[]Ent, e, free_tag, stamp_tag: int) -> (int, bool) {
 	if !ctx_keyed(e) do return lc_get(table, e, 0, free_tag)
-	return lc_get(table, e, ctx_key(), stamp_tag)
+	v, ok := lc_get(table, e, ctx_key(), stamp_tag)
+	if !ok do return 0, false
+	flags_set(flags_get() | (v >> F_SHIFT))
+	return v & F_MASK, true
 }
 
-whnf_save :: proc(table: ^[]Ent, e, r, free_tag, stamp_tag: int, sensitive: bool) {
+whnf_save :: proc(table: ^[]Ent, e, r, free_tag, stamp_tag: int, read: int) {
 	if aborted || fuel_out do return
-	_ = sensitive
 	if !ctx_keyed(e) {
 		lc_put(table, e, 0, free_tag, r, max(e, r))
 		return
 	}
-	lc_put(table, e, ctx_key(), stamp_tag, r, max(e, r))
+	lc_put(table, e, ctx_key(), stamp_tag, r | (read << F_SHIFT), max(e, r))
 }
 // Value of let-bound bvar `index` at the current depth, if this binder was opened
 // by infer (not by a term-level let, which whnf still substitutes directly).
@@ -1879,12 +1905,22 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 	}
 	ck := closed ? 0 : ctx_key()
 	tag := closed ? 0 : 1
-	if r, hit := lc_get(&lc_infer, e, ck, tag); hit do return r, true
+	// The type of an open term is a fact about the binders in scope: the same
+	// `#0` is a proof under one binder and a number under the next. Whoever asks
+	// has read the context, on a hit as much as on a miss.
+	if r, hit := lc_get(&lc_infer, e, ck, tag); hit {
+		if !closed do whnf_dep = true
+		return r, true
+	}
 	saved_floor := ctx_floor
 	if closed do ctx_floor = len(ictx)
 	defer ctx_floor = saved_floor
 	wm := len(exprs)
+	// A closed term opens only its own binders. What it reads from those says
+	// nothing about the caller's context.
+	outer := flags_get()
 	res, ok = infer_raw(e)
+	flags_set(outer)
 	// A syntactically closed term can still have a context-dependent type
 	// (the fvar case above). Never store that type in the global slot.
 	if ok && exprs[res].lbr > 0 {
@@ -1892,6 +1928,7 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 		ck = ctx_key()
 		tag = 1
 	}
+	if !closed do whnf_dep = true
 	if len(exprs) - wm > gc_min do res = gc_region(wm, ok ? res : -1)
 	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, ck, tag, res, max(e, res))
 	return
@@ -2114,21 +2151,24 @@ try_eta_struct :: proc(a, b: int) -> bool {
 	if len(ab) != c.nparams + c.nfields do return false
 	saved := failure
 	defer failure = saved
+	// A rule that did not apply contributes nothing to a later `true`. What it
+	// read is dropped; `type_maybe` keeps a `false` on the stamp.
+	before := flags_get()
 	ta, ok1 := infer(a)
 	tb, ok2 := infer(b)
 	if !ok1 || !ok2 || !def_eq(ta, tb) {
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 		return false
 	}
 	for i in 0 ..< c.nfields {
 		if !def_eq(mk_proj(c.induct, i, a), ab[c.nparams + i]) {
-			type_maybe = true
+			flags_set(before | F_MAYBE)
 			return false
 		}
 	}
-	// Closed types that matched without reading this context denote the same
-	// structure under every binder, so the eta proof does not need the stamp.
-	if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+	// `a` has this structure type because of the binders in scope. A closed
+	// type does not change that: under other binders `a` is something else.
+	if ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 	return true
 }
 
@@ -2184,19 +2224,22 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if ctx_floor == 0 && keyed && val_pat != 0 {
 		if r, ok := lc_get(&lc_defeq, -k[0] - 1, k[1], val_pat); ok {
 			if diag_on { diag_hit += 1; diag_vh += 1 }
+			zeta_hit = true
 			return r != 0
 		}
 	}
 	if ctx_floor == 0 && keyed && type_pat != 0 && !tpat_saturated {
 		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
 			if diag_on { diag_hit += 1; diag_th += 1 }
+			deq_dep = true
 			return r != 0
 		}
 	}
 	if keyed {
 		if r, ok := lc_get(&lc_defeq, k[0], k[1], -ctx_key()); ok {
 			if diag_on { diag_hit += 1; diag_sh += 1 }
-			return r != 0
+			flags_set(flags_get() | (r >> 1))
+			return r & 1 != 0
 		}
 	}
 	saved_d, saved_w, saved_z, saved_t := deq_dep, whnf_dep, zeta_hit, type_maybe
@@ -2216,7 +2259,9 @@ def_eq :: proc(a0, b0: int) -> bool {
 	deq_dep = saved_d || deq_dep
 	whnf_dep = saved_w || whnf_dep
 	zeta_hit = saved_z || zeta_hit
-	type_maybe = saved_t
+	// A `false` that rests on a rule not applying here makes the caller's
+	// `false` rest on it too. A caller that ends `true` ignores the flag.
+	type_maybe = saved_t || (!r && lt)
 	if len(exprs) - wm > gc_min do gc_region(wm, -1)
 	if !aborted && !fuel_out {
 		if share && !sens {
@@ -2247,7 +2292,12 @@ def_eq :: proc(a0, b0: int) -> bool {
 				else if !r && lt do diag_rt += 1
 				else do diag_wide += 1
 			}
-			lc_put(&lc_defeq, k[0], k[1], -ctx_key(), r ? 1 : 0, k[1])
+			read := 0
+			if ld do read |= F_DEQ
+			if lw do read |= F_WHNF
+			if lz do read |= F_ZETA
+			if !r && lt do read |= F_MAYBE
+			lc_put(&lc_defeq, k[0], k[1], -ctx_key(), (r ? 1 : 0) | (read << 1), k[1])
 		} else {
 			if diag_on do diag_ms += 1
 			lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0, k[1])
@@ -2326,20 +2376,20 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	// shared. A false result might flip under other binder types.
 	if !definitely_not_proof(a) && !definitely_not_proof(b) {
 		saved := failure
+		before := flags_get()
 		ta, ok := infer(a)
 		if ok && is_prop(ta) {
 			tb, ok2 := infer(b)
 			if ok2 {
 				eq := def_eq(ta, tb)
-				// Proof irrelevance of two closed propositions is the same under
-				// every binder. An open proposition, or a comparison that itself
-				// read the context, stays on the stamp.
-				if !eq || deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+				// Whether an open term is a proof, and of what, is decided by
+				// the binders in scope, even when the proposition is closed.
+				if !eq || ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 				return eq
 			}
 		}
 		failure = saved
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 	}
 	// literals
 	if ea.kind == .NatLit && eb.kind == .NatLit do return ea.a == eb.a
@@ -2419,6 +2469,7 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	if try_eta_struct(a, b) || try_eta_struct(b, a) do return true
 	if !definitely_not_proof(a) && !definitely_not_proof(b) { // unit-like types: all elements are equal
 		saved := failure
+		before := flags_get()
 		ta, ok := infer(a)
 		if ok {
 			wt := whnf(ta)
@@ -2428,14 +2479,14 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 				if ind, f := env[exprs[uh].a]; f && ind.kind == .Induct && len(ind.ctors) == 1 && ind.nindices == 0 && env[ind.ctors[0]].nfields == 0 && len(uargs) == ind.nparams {
 					tb, ok2 := infer(b)
 					if ok2 && def_eq(ta, tb) {
-						if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+						if ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 						return true
 					}
 				}
 			}
 		}
 		failure = saved
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 	}
 	// structural comparison of neutral terms
 	if ea.kind == .Proj && eb.kind == .Proj {
