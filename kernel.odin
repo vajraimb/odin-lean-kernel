@@ -12,11 +12,13 @@
 package main
 
 import "base:runtime"
+import "base:intrinsics"
 import "core:bufio"
 import "core:encoding/json"
 import "core:fmt"
 import "core:unicode/utf8"
 import "core:math/big"
+import "core:mem"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -34,7 +36,10 @@ Expr :: struct {
 	hasfv:      bool,
 	kind:       Expr_Kind,
 	a, b, c, d: int,   // meaning depends on kind (see mk_* below)
-	lbr:        int,   // loose bvar range
+	// The two 32-bit fields share a word so the node stays 64 bytes. Making room
+	// with a one-byte `kind` instead measured about 10% slower on Init.
+	lbr:        i32,   // loose bvar range
+	low:        u32,   // which loose bvars occur: bit i for index i < 31, bit 31 for any index >= 31
 	us:         []int, // Const: level ids
 }
 
@@ -70,7 +75,9 @@ Kernel_Error :: struct { msg: string }
 failure: Maybe(string) // first error of the current declaration
 
 fail :: proc(format: string, args: ..any) -> bool {
-	if failure == nil do failure = fmt.aprintf(format, ..args)
+	// The message is printed before the declaration's temp memory is released.
+	// Most failures are speculative (a rule that did not apply) and are dropped.
+	if failure == nil do failure = fmt.tprintf(format, ..args)
 	return false
 }
 
@@ -160,10 +167,10 @@ level_str :: proc(l: int) -> string {
 	lv := levels[l]
 	switch lv.kind {
 	case .Zero:  return "0"
-	case .Succ:  return fmt.aprintf("S(%s)", level_str(lv.a))
-	case .Max:   return fmt.aprintf("max(%s,%s)", level_str(lv.a), level_str(lv.b))
-	case .IMax:  return fmt.aprintf("imax(%s,%s)", level_str(lv.a), level_str(lv.b))
-	case .Param: return fmt.aprintf("%s", names[lv.a])
+	case .Succ:  return fmt.tprintf("S(%s)", level_str(lv.a))
+	case .Max:   return fmt.tprintf("max(%s,%s)", level_str(lv.a), level_str(lv.b))
+	case .IMax:  return fmt.tprintf("imax(%s,%s)", level_str(lv.a), level_str(lv.b))
+	case .Param: return fmt.tprintf("%s", names[lv.a])
 	}
 	return "?"
 }
@@ -200,7 +207,7 @@ collect_terms :: proc(l: int, k: int, out: ^[dynamic]Term) {
 		} else if level_equiv(lv.a, lv.b) {
 			collect_terms(lv.a, k, out)
 		} else {
-			append(out, Term{fmt.aprintf("imax(%s,%s)", canon_level(lv.a), canon_level(lv.b)), k})
+			append(out, Term{fmt.tprintf("imax(%s,%s)", canon_level(lv.a), canon_level(lv.b)), k})
 		}
 	}
 }
@@ -318,7 +325,7 @@ canon_level_raw :: proc(l: int) -> string {
 	defer delete(m)
 	keys := make([dynamic]string)
 	defer delete(keys)
-	for k, v in m do append(&keys, fmt.aprintf("%s+%d", k, v))
+	for k, v in m do append(&keys, fmt.tprintf("%s+%d", k, v))
 	slice.sort(keys[:])
 	return strings.join(keys[:], "|")
 }
@@ -406,8 +413,11 @@ decl_start_exprs: int
 
 // Hash-consing table: chained buckets over expression ids. Chains run from the newest to the
 // oldest id, so dropping the newest expressions only pops chain heads.
-hc_buckets: []int       // head id of each chain, -1 if empty
-hc_next: [dynamic]int   // next id in the chain; -2 = not registered
+// Ids are 32-bit here: with one slot per expression of a 100M-node export, 8-byte
+// links were 3 GB of a 15 GB machine.
+hc_buckets: []i32       // head id of each chain, -1 if empty
+hc_next: [dynamic]i32   // next id in the chain; -2 = not registered
+HC_DENSE :: 1 << 26     // from this many buckets on, fill to one expression per bucket
 hc_count: int
 
 expr_hash :: proc(e: ^Expr) -> u64 {
@@ -431,34 +441,56 @@ expr_same :: proc(x, y: ^Expr) -> bool {
 
 hc_find :: proc(e: ^Expr, h: u64) -> int {
 	if len(hc_buckets) == 0 do return -1
-	i := hc_buckets[int(h) & (len(hc_buckets) - 1)]
+	i := int(hc_buckets[int(h) & (len(hc_buckets) - 1)])
 	for i >= 0 {
 		if expr_same(&exprs[i], e) do return i
-		i = hc_next[i]
+		i = int(hc_next[i])
 	}
 	return -1
 }
 
 hc_insert :: proc(id: int, h: u64) {
-	if hc_count * 2 >= len(hc_buckets) {
+	if id >= int(max(i32)) {
+		fmt.eprintln("expression table is full (2^31 nodes)")
+		os.exit(2)
+	}
+	// Half full while the table is small. A large table is the export itself,
+	// where doubling costs a gigabyte; chains of length one or two are cheaper.
+	full := len(hc_buckets) < HC_DENSE ? hc_count * 2 >= len(hc_buckets) : hc_count >= len(hc_buckets)
+	if full {
 		n := max(1 << 16, len(hc_buckets) * 2)
 		delete(hc_buckets)
-		hc_buckets = make([]int, n)
+		hc_buckets = make([]i32, n)
 		for j in 0 ..< n do hc_buckets[j] = -1
 		for j in 0 ..< len(exprs) {
 			if j < len(hc_next) && hc_next[j] != -2 && j != id {
 				hh := expr_hash(&exprs[j])
 				b := int(hh) & (n - 1)
 				hc_next[j] = hc_buckets[b]
-				hc_buckets[b] = j
+				hc_buckets[b] = i32(j)
 			}
 		}
 	}
 	b := int(h) & (len(hc_buckets) - 1)
 	for len(hc_next) <= id do append(&hc_next, -2)
 	hc_next[id] = hc_buckets[b]
-	hc_buckets[b] = id
+	hc_buckets[b] = i32(id)
 	hc_count += 1
+}
+
+// Loose bvars of a term as a bit set. Going under a binder shifts the set down;
+// the top bit stays, since an index >= 31 may still be >= 31 one binder out.
+low_under :: proc(x: u32) -> u32 { return (x >> 1) | (x & 0x8000_0000) }
+expr_low :: proc(e: ^Expr) -> u32 {
+	#partial switch e.kind {
+	case .BVar: return e.a < 31 ? u32(1) << uint(e.a) : 0x8000_0000
+	case .App: return exprs[e.a].low | exprs[e.b].low
+	case .Lam, .Pi: return exprs[e.b].low | low_under(exprs[e.c].low)
+	case .Let: return exprs[e.b].low | exprs[e.c].low | low_under(exprs[e.d].low)
+	case .Proj: return exprs[e.c].low
+	case .MData: return exprs[e.a].low
+	}
+	return 0
 }
 
 add_calls: int
@@ -477,6 +509,7 @@ add_expr :: proc(e: Expr) -> int {
 	case .Proj: e.hasfv = exprs[e.c].hasfv
 	case .MData: e.hasfv = exprs[e.a].hasfv
 	}
+	e.low = expr_low(&e)
 	append(&exprs, e)
 	if len(born) < len(exprs) do resize(&born, len(exprs))
 	born[len(exprs) - 1] = u32(stamp_ctr)
@@ -562,13 +595,14 @@ gc_region :: proc(wm: int, keep: int) -> int {
 	// have to die together. The let/lambda bit pattern has no expression id
 	// and can be rebuilt; its cache entries die with the same generation.
 	delete(vpat_of); vpat_of = nil
-	delete(tpat_of); tpat_of = nil
-	tpat_saturated = false
+	delete(ctx_of); ctx_of = nil
 	cache_gen += 1
 	return res
 }
 
-mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = i + 1}) }
+// An index past any real binder depth still has to count as loose.
+lbr_of_bvar :: proc(i: int) -> i32 { return i32(min(i + 1, int(max(i32)))) }
+mk_bvar :: proc(i: int) -> int { return add_expr(Expr{kind = .BVar, a = i, lbr = lbr_of_bvar(i)}) }
 mk_fvar :: proc(i: int) -> int { return add_expr(Expr{kind = .FVar, a = i}) }
 mk_sort :: proc(l: int) -> int { return add_expr(Expr{kind = .Sort, a = l}) }
 mk_const :: proc(n: int, us: []int) -> int { return add_expr(Expr{kind = .Const, a = n, us = us}) }
@@ -613,7 +647,7 @@ Inst_Key :: struct { e, v, off: int }
 
 instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 	if trace_on { pc_inst += 1; if pc_inst % 100000 == 0 { fmt.eprintfln("P inst %d", pc_inst) } }
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	k := Inst_Key{e, v, off}
 	if r, ok := lc_get(&lc_inst, e, v, off); ok do return r
 	r := instantiate_raw(e, v, off)
@@ -624,7 +658,7 @@ instantiate :: proc(e: int, v: int, off: int = 0) -> int {
 // Lift loose bvars >= off by n. Closed terms (and terms with no such bvar) are returned as-is,
 // so the closed-substituent path stays pointer-identical to the pre-lift code.
 lift :: proc(e, n, off: int) -> int {
-	if n == 0 || exprs[e].lbr <= off do return e
+	if n == 0 || int(exprs[e].lbr) <= off do return e
 	if r, ok := lc_get(&lc_lift, e, n, off); ok do return r
 	r := lift_raw(e, n, off)
 	lc_put(&lc_lift, e, n, off, r, max(e, r))
@@ -632,7 +666,7 @@ lift :: proc(e, n, off: int) -> int {
 }
 lift_raw :: proc(e, n, off: int) -> int {
 	ex := exprs[e]
-	if ex.lbr <= off do return e
+	if int(ex.lbr) <= off do return e
 	switch ex.kind {
 	case .BVar:
 		if ex.a >= off do return mk_bvar(ex.a + n)
@@ -650,7 +684,7 @@ lift_raw :: proc(e, n, off: int) -> int {
 instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 	enter(.Instantiate)
 	ex := exprs[e]
-	if ex.lbr <= off do return e
+	if int(ex.lbr) <= off do return e
 	switch ex.kind {
 	case .BVar:
 		if ex.a == off do return v
@@ -676,7 +710,7 @@ instantiate_raw :: proc(e: int, v: int, off: int = 0) -> int {
 // Arguments may be open: a replacement inserted under `off` binders is lifted by `off`.
 // Closed arguments are not lifted, so that path stays pointer-identical.
 instantiate_n :: proc(e: int, args: []int, tok: int, off: int = 0) -> int {
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
 	ex := exprs[e]
 	r: int
@@ -741,9 +775,13 @@ inst_expr_levels_raw :: proc(e: int, ps: []int, us: []int) -> int {
 	switch ex.kind {
 	case .Sort: return mk_sort(level_inst(ex.a, ps, us))
 	case .Const:
-		nus := make([]int, len(ex.us))
+		// The node keeps the interned list. A fresh slice per call was never
+		// freed: not when the constant already existed, and not at purge.
+		if len(ex.us) == 0 do return e
+		nus := make([]int, len(ex.us), context.temp_allocator)
 		for u, i in ex.us do nus[i] = level_inst(u, ps, us)
-		return mk_const(ex.a, nus)
+		id := us_id(nus) // may grow us_tab; index it afterwards
+		return mk_const(ex.a, us_tab[id - 1])
 	case .App: return mk_app(inst_expr_levels(ex.a, ps, us), inst_expr_levels(ex.b, ps, us))
 	case .Lam, .Pi: return mk_binder(ex.kind, ex.a, inst_expr_levels(ex.b, ps, us), inst_expr_levels(ex.c, ps, us))
 	case .Let: return mk_let(ex.a, inst_expr_levels(ex.b, ps, us), inst_expr_levels(ex.c, ps, us), inst_expr_levels(ex.d, ps, us))
@@ -780,23 +818,23 @@ expr_str :: proc(e: int, depth: int = 0) -> string {
 	if depth > 6 do return "…"
 	ex := exprs[e]
 	switch ex.kind {
-	case .BVar: return fmt.aprintf("#%d", ex.a)
-	case .FVar: return fmt.aprintf("%s", names[fv_name[ex.a]])
-	case .Sort: return fmt.aprintf("Sort %s", level_str(ex.a))
+	case .BVar: return fmt.tprintf("#%d", ex.a)
+	case .FVar: return fmt.tprintf("%s", names[fv_name[ex.a]])
+	case .Sort: return fmt.tprintf("Sort %s", level_str(ex.a))
 	case .Const: return names[ex.a]
-	case .App: return fmt.aprintf("(%s %s)", expr_str(ex.a, depth + 1), expr_str(ex.b, depth + 1))
-	case .Lam: return fmt.aprintf("(fun %s : %s => %s)", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
-	case .Pi: return fmt.aprintf("(%s : %s) -> %s", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
-	case .Let: return fmt.aprintf("(let %s := %s; %s)", names[ex.a], expr_str(ex.c, depth + 1), expr_str(ex.d, depth + 1))
+	case .App: return fmt.tprintf("(%s %s)", expr_str(ex.a, depth + 1), expr_str(ex.b, depth + 1))
+	case .Lam: return fmt.tprintf("(fun %s : %s => %s)", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
+	case .Pi: return fmt.tprintf("(%s : %s) -> %s", names[ex.a], expr_str(ex.b, depth + 1), expr_str(ex.c, depth + 1))
+	case .Let: return fmt.tprintf("(let %s := %s; %s)", names[ex.a], expr_str(ex.c, depth + 1), expr_str(ex.d, depth + 1))
 	case .MData: return expr_str(ex.a, depth)
-	case .Proj: return fmt.aprintf("%s.%d", expr_str(ex.c, depth + 1), ex.b)
+	case .Proj: return fmt.tprintf("%s.%d", expr_str(ex.c, depth + 1), ex.b)
 	case .NatLit:
 		t: big.Int
 		defer big.int_destroy(&t)
 		nat_from_bytes(&t, lit_strs[ex.a])
 		str, _ := big.int_itoa_string(&t)
 		return str
-	case .StrLit: return fmt.aprintf("%q", lit_strs[ex.a])
+	case .StrLit: return fmt.tprintf("%q", lit_strs[ex.a])
 	case .Unsupported: return "<unsupported>"
 	}
 	return "?"
@@ -816,13 +854,9 @@ whnf_core :: proc(e: int) -> int {
 	// fire, so the result is shared across lambda binders unless this step reads
 	// a binder type (whnf_dep). A let, or that type-sensitive step, keeps the stamp.
 	if r, ok := whnf_load(&lc_whnfc, e, 0, 1); ok do return r
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	r := whnf_core_raw(e)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
-	whnf_save(&lc_whnfc, e, r, 0, 1, sens)
+	whnf_save(&lc_whnfc, e, r, 0, 1, flags_end(outer))
 	return r
 }
 
@@ -890,7 +924,7 @@ force_thunk :: proc(th: int) -> int {
 	return r
 }
 instantiate_env :: proc(e, env, off: int) -> int {
-	if exprs[e].lbr <= off do return e
+	if int(exprs[e].lbr) <= off do return e
 	tok := -(envnodes[env].id + 1)
 	if r, ok := lc_get(&lc_inst2, e, tok, off); ok do return r
 	ex := exprs[e]
@@ -1134,6 +1168,13 @@ whnf_core_eager :: proc(e: int) -> int {
 				if h == head do return cur
 				r := h
 				for a in args do r = mk_app(r, a)
+				// The head reduced to an application, e.g. a structure field
+				// that holds `Quot.lift f h` or a recursor missing its major.
+				// With these arguments it may be a redex now.
+				if exprs[h].kind == .App {
+					cur = r
+					continue
+				}
 				return r
 			}
 		case: return cur
@@ -1233,28 +1274,21 @@ unfold_head :: proc(e: int) -> (res: int, ok: bool) {
 	// A refused unfold is not cached: the counter is per top-level def_eq, so the
 	// same term can unfold again on the next comparison.
 	if nat_unfold_capped(names[hx.a]) && (exprs[e].lbr > 0 || exprs[e].hasfv) {
-		saved_d, saved_z := whnf_dep, zeta_hit
-		whnf_dep, zeta_hit = false, false
+		outer := flags_begin()
 		r, ok2 := reduce_nat(e)
-		sens := whnf_dep || zeta_hit
-		whnf_dep = saved_d || whnf_dep
-		zeta_hit = saved_z || zeta_hit
+		fl := flags_end(outer)
 		if ok2 {
-			whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+			whnf_save(&lc_whnfc, e, r, 2, 3, fl)
 			return r, true
 		}
 		if nat_unfolds >= NAT_DEFEQ_UNFOLD_CAP do return e, false
 		nat_unfolds += 1
 	}
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	r := inst_expr_levels(d.value, d.lparams, hx.us)
 	for a in args do r = mk_app(r, a)
 	r = whnf_core(r)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
-	whnf_save(&lc_whnfc, e, r, 2, 3, sens)
+	whnf_save(&lc_whnfc, e, r, 2, 3, flags_end(outer))
 	return r, true
 }
 
@@ -1271,15 +1305,12 @@ head_height :: proc(e: int) -> int {
 whnf :: proc(e: int) -> int {
 	if trace_on { pc_whnf += 1; if pc_whnf % 100000 == 0 { fmt.eprintfln("P whnf %d", pc_whnf) } }
 	if r, ok := whnf_load(&lc_whnf, e, 0, 1); ok do return r
-	saved_d, saved_z := whnf_dep, zeta_hit
-	whnf_dep, zeta_hit = false, false
+	outer := flags_begin()
 	wm := len(exprs)
 	r := whnf_raw(e)
-	sens := whnf_dep || zeta_hit
-	whnf_dep = saved_d || whnf_dep
-	zeta_hit = saved_z || zeta_hit
+	fl := flags_end(outer)
 	if len(exprs) - wm > gc_min do r = gc_region(wm, r)
-	whnf_save(&lc_whnf, e, r, 0, 1, sens)
+	whnf_save(&lc_whnf, e, r, 0, 1, fl)
 	return r
 }
 
@@ -1693,7 +1724,7 @@ try_iota :: proc(rec_const: int, args: []int) -> (res: int, ok: bool) {
 // are unsound for open terms; `ctx_stamp` is part of those keys. `ctx_floor`
 // hides the outer context while a closed subterm is checked, so its bvars cannot
 // see binders it does not sit under.
-CtxEnt :: struct { ty, val, depth, saved: int, mask: u64, pat, vpat, tpat: int }
+CtxEnt :: struct { ty, val, depth, saved: int, mask: u64, pat, vpat: int }
 ictx: [dynamic]CtxEnt
 ctx_floor: int
 ctx_stamp: int = 1
@@ -1714,12 +1745,6 @@ VPat :: struct { letb: u8, val, outer: int }
 vpat_of: map[VPat]int
 next_vpat: int = 1
 val_pat: int
-// Full binder spine: type and let value. Proof irrelevance and structure
-// reduction depend on the types, so those true results key on this.
-TPat :: struct { ty, val, outer: int }
-tpat_of: map[TPat]int
-next_tpat: int = 1
-type_pat: int
 // This reduction substituted a let (zeta) or read a binder type. The result
 // stays under the stamp. A computation that did neither depends only on which
 // of its bvars are lets, not on the let values or the binder types.
@@ -1731,22 +1756,59 @@ deq_dep: bool
 // other binder types, so only a `true` from this comparison is shared.
 type_maybe: bool
 diag_on: bool
-spine_max: int
-tpat_saturated: bool
+tree_depth, tree_min: int
 diag_deq, diag_hit, diag_raw: int
 diag_mh, diag_sh, diag_ms, diag_ss: int
 diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_rt, diag_mix, diag_wide: int
 diag_ph, diag_ps, diag_vh, diag_vs, diag_th, diag_ts: int
 
-// Cache key for an open term. Loose bvars are shared by index, and a closed
-// subterm raises ctx_floor without pushing, so both the stamp and the floor
-// have to participate. Closed-term caches keep using 0.
-// Stamps are not reused. Pop restores the stamp of the context we return to,
-// so two subterms checked in the same context (the shared arguments in app-lam)
-// hit the same cache key, while a later sibling binder gets a fresh stamp and
-// cannot see the previous binder's entries.
+// The four flags as one word, so a cached result can carry what it read.
+// A result stored under the stamp is only valid in this context. A caller that
+// reuses it has read the context just as much as the computation that made it,
+// so every hit puts the flags back. Without this the caller looked clean and
+// its own result was shared with binders of other types or other let values.
+F_DEQ   :: 1
+F_WHNF  :: 2
+F_ZETA  :: 4
+F_MAYBE :: 8
+F_SHIFT :: 48
+F_MASK  :: (1 << F_SHIFT) - 1
+flags_get :: proc() -> int {
+	f := 0
+	if deq_dep do f |= F_DEQ
+	if whnf_dep do f |= F_WHNF
+	if zeta_hit do f |= F_ZETA
+	if type_maybe do f |= F_MAYBE
+	return f
+}
+flags_set :: proc(f: int) {
+	deq_dep = f & F_DEQ != 0
+	whnf_dep = f & F_WHNF != 0
+	zeta_hit = f & F_ZETA != 0
+	type_maybe = f & F_MAYBE != 0
+}
+// Start a frame with clean flags; returns the caller's.
+flags_begin :: proc() -> int {
+	f := flags_get()
+	flags_set(0)
+	return f
+}
+// End a frame: returns what this frame read and gives the caller both.
+flags_end :: proc(outer: int) -> int {
+	f := flags_get()
+	flags_set(outer | f)
+	return f
+}
+
+// Cache key for an open term: the stamp of the binders it can see.
+// A stamp names a binder spine: the type and let value of every visible binder,
+// outermost first. Typing, reduction and equality of an open term read nothing
+// else from the context, so opening the same binder again (a retry with a larger
+// budget, the same lambda met twice) gets the same stamp and finds the earlier
+// results. A closed subterm starts over from the root stamp, because it cannot
+// see the binders it sits under. A stamp is never given to a second spine.
 ctx_key :: proc() -> int {
-	return ctx_stamp + (ctx_floor << 32)
+	return ctx_stamp
 }
 
 pat_intern :: proc(bit: u8) -> int {
@@ -1769,34 +1831,29 @@ vpat_intern :: proc(letb: u8, val: int) -> int {
 	return id
 }
 
-tpat_intern :: proc(ty, val: int) -> int {
-	if tpat_of == nil do tpat_of = make(map[TPat]int)
-	p := TPat{ty, val, type_pat}
-	if id, ok := tpat_of[p]; ok do return id
-	// Stop adding once the table is large. Deleting it returns the slots to the
-	// heap, which does not give the pages back, so a long declaration climbs
-	// until the process is killed. Callers must not cache under a spine id
-	// after this: new binders are left out of the id.
-	if tpat_saturated || (spine_max > 0 && len(tpat_of) >= spine_max) {
-		tpat_saturated = true
-		return type_pat
-	}
-	id := next_tpat
-	next_tpat += 1
-	tpat_of[p] = id
-	return id
+// Stamp of the spine `outer` extended by one binder. The table is keyed by
+// expression ids, so it is dropped whenever ids are dropped or slid, together
+// with every cache entry (`cache_gen`). Stamps already on the stack stay valid:
+// numbers are not handed out twice while a context is open.
+CtxKey :: struct { ty, val, outer: int }
+ctx_of: map[CtxKey]int
+ctx_intern :: proc(ty, val, outer: int) -> int {
+	if ctx_of == nil do ctx_of = make(map[CtxKey]int)
+	k := CtxKey{ty, val, outer}
+	if r, ok := ctx_of[k]; ok do return r
+	next_stamp += 1
+	ctx_of[k] = next_stamp
+	return next_stamp
 }
 
 ctx_push :: proc(ty, val: int) {
-	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp, let_mask, pat_id, val_pat, type_pat})
-	next_stamp += 1
-	ctx_stamp = next_stamp
+	append(&ictx, CtxEnt{ty, val, idepth, ctx_stamp, let_mask, pat_id, val_pat})
+	ctx_stamp = ctx_intern(ty, val, ctx_stamp)
 	bit: u64 = val >= 0 ? 1 : 0
 	let_mask = (let_mask << 1) | bit
 	pat_id = pat_intern(u8(bit))
 	if val >= 0 do val_pat = vpat_intern(1, val)
 	else do val_pat = vpat_intern(0, 0)
-	type_pat = tpat_intern(ty, val)
 }
 ctx_pop :: proc() {
 	ent := pop(&ictx)
@@ -1804,7 +1861,6 @@ ctx_pop :: proc() {
 	let_mask = ent.mask
 	pat_id = ent.pat
 	val_pat = ent.vpat
-	type_pat = ent.tpat
 }
 
 // Let/lambda pattern of the bvars e can see. ok is false when that pattern does
@@ -1838,17 +1894,19 @@ wide_pat :: proc(e: int) -> bool {
 // cached separately, where the flags are checked on the boolean.
 whnf_load :: proc(table: ^[]Ent, e, free_tag, stamp_tag: int) -> (int, bool) {
 	if !ctx_keyed(e) do return lc_get(table, e, 0, free_tag)
-	return lc_get(table, e, ctx_key(), stamp_tag)
+	v, ok := lc_get(table, e, ctx_key(), stamp_tag)
+	if !ok do return 0, false
+	flags_set(flags_get() | (v >> F_SHIFT))
+	return v & F_MASK, true
 }
 
-whnf_save :: proc(table: ^[]Ent, e, r, free_tag, stamp_tag: int, sensitive: bool) {
+whnf_save :: proc(table: ^[]Ent, e, r, free_tag, stamp_tag: int, read: int) {
 	if aborted || fuel_out do return
-	_ = sensitive
 	if !ctx_keyed(e) {
 		lc_put(table, e, 0, free_tag, r, max(e, r))
 		return
 	}
-	lc_put(table, e, ctx_key(), stamp_tag, r, max(e, r))
+	lc_put(table, e, ctx_key(), stamp_tag, r | (read << F_SHIFT), max(e, r))
 }
 // Value of let-bound bvar `index` at the current depth, if this binder was opened
 // by infer (not by a term-level let, which whnf still substitutes directly).
@@ -1878,19 +1936,30 @@ infer :: proc(e: int) -> (res: int, ok: bool) {
 	}
 	ck := closed ? 0 : ctx_key()
 	tag := closed ? 0 : 1
-	if r, hit := lc_get(&lc_infer, e, ck, tag); hit do return r, true
-	saved_floor := ctx_floor
-	if closed do ctx_floor = len(ictx)
-	defer ctx_floor = saved_floor
+	// The type of an open term is a fact about the binders in scope: the same
+	// `#0` is a proof under one binder and a number under the next. Whoever asks
+	// has read the context, on a hit as much as on a miss.
+	if r, hit := lc_get(&lc_infer, e, ck, tag); hit {
+		if !closed do whnf_dep = true
+		return r, true
+	}
+	saved_floor, saved_stamp := ctx_floor, ctx_stamp
+	if closed { ctx_floor = len(ictx); ctx_stamp = 1 }
+	defer { ctx_floor = saved_floor; ctx_stamp = saved_stamp }
 	wm := len(exprs)
+	// A closed term opens only its own binders. What it reads from those says
+	// nothing about the caller's context.
+	outer := flags_get()
 	res, ok = infer_raw(e)
+	flags_set(outer)
 	// A syntactically closed term can still have a context-dependent type
 	// (the fvar case above). Never store that type in the global slot.
 	if ok && exprs[res].lbr > 0 {
 		closed = false
-		ck = ctx_key()
+		ck = saved_stamp
 		tag = 1
 	}
+	if !closed do whnf_dep = true
 	if len(exprs) - wm > gc_min do res = gc_region(wm, ok ? res : -1)
 	if ok && !aborted && !fuel_out do lc_put(&lc_infer, e, ck, tag, res, max(e, res))
 	return
@@ -2113,21 +2182,24 @@ try_eta_struct :: proc(a, b: int) -> bool {
 	if len(ab) != c.nparams + c.nfields do return false
 	saved := failure
 	defer failure = saved
+	// A rule that did not apply contributes nothing to a later `true`. What it
+	// read is dropped; `type_maybe` keeps a `false` on the stamp.
+	before := flags_get()
 	ta, ok1 := infer(a)
 	tb, ok2 := infer(b)
 	if !ok1 || !ok2 || !def_eq(ta, tb) {
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 		return false
 	}
 	for i in 0 ..< c.nfields {
 		if !def_eq(mk_proj(c.induct, i, a), ab[c.nparams + i]) {
-			type_maybe = true
+			flags_set(before | F_MAYBE)
 			return false
 		}
 	}
-	// Closed types that matched without reading this context denote the same
-	// structure under every binder, so the eta proof does not need the stamp.
-	if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+	// `a` has this structure type because of the binders in scope. A closed
+	// type does not change that: under other binders `a` is something else.
+	if ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 	return true
 }
 
@@ -2142,6 +2214,44 @@ def_eq_under :: proc(ty, lhs, rhs: int) -> bool {
 	return r
 }
 
+// Number of innermost binders that neither term mentions. A free variable's
+// recorded type may mention any of them, so such a term keeps them all.
+unused_binders :: proc(a, b: int) -> int {
+	x := exprs[a].low | exprs[b].low
+	if x == 0 || exprs[a].hasfv || exprs[b].hasfv do return 0
+	return min(int(intrinsics.count_trailing_zeros(x)), len(ictx) - ctx_floor)
+}
+
+// Compare two terms that do not mention the m innermost binders, in the context
+// without those binders. Equality does not depend on a variable neither side
+// mentions, so the answer is the same, and it is found again under any other
+// inner binders. A kernel with named free variables gets this for free: the
+// outer variables are the same objects at every depth. With de Bruijn indices
+// they are renumbered at every binder, so `inst₁ =?= inst₂` under `a`, under
+// `a b`, and under `a b c` were three unrelated questions, each asked again
+// for every new binder type.
+strip_stack: [dynamic]CtxEnt
+no_strip: bool
+diag_strip: int
+def_eq_stripped :: proc(a0, b0, m: int) -> bool {
+	a1 := lift(a0, -m, 0)
+	b1 := lift(b0, -m, 0)
+	n := len(ictx)
+	st_stamp, st_mask, st_pat, st_vpat := ctx_stamp, let_mask, pat_id, val_pat
+	first := ictx[n - m]
+	for i in n - m ..< n do append(&strip_stack, ictx[i])
+	resize(&ictx, n - m)
+	ctx_stamp, let_mask, pat_id, val_pat = first.saved, first.mask, first.pat, first.vpat
+	idepth -= m
+	r := def_eq(a1, b1)
+	idepth += m
+	base := len(strip_stack) - m
+	for i in 0 ..< m do append(&ictx, strip_stack[base + i])
+	resize(&strip_stack, base)
+	ctx_stamp, let_mask, pat_id, val_pat = st_stamp, st_mask, st_pat, st_vpat
+	return r
+}
+
 def_eq :: proc(a0, b0: int) -> bool {
 	if def_eq_depth == 0 do nat_unfolds = 0
 	def_eq_depth += 1
@@ -2151,7 +2261,8 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if diag_on {
 		diag_deq += 1
 		if diag_deq & 0x1fffff == 0 {
-			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d tpat %d canon %d ictx %d levels %d depth %d fuel %d vpats %d tpats %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(tpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_vpat, next_tpat)
+			fmt.eprintfln("STRIP %d", diag_strip)
+			fmt.eprintfln("DEQ %d hit %d mh %d sh %d ms %d ss %d ph %d vh %d th %d vs %d ts %d T %d F %d deq %d zeta %d whnf %d mix %d exprs %d/%d hcnext %d/%d pat %d vpat %d canon %d ictx %d levels %d depth %d fuel %d stamps %d", diag_deq, diag_hit, diag_mh, diag_sh, diag_ms, diag_ss, diag_ph, diag_vh, diag_th, diag_vs, diag_ts, diag_ss_t, diag_ss_f, diag_rd, diag_rz, diag_rw, diag_mix, len(exprs), cap(exprs), len(hc_next), cap(hc_next), len(pat_of), len(vpat_of), len(canon_memo), len(ictx), len(levels), def_eq_depth, fuel, next_stamp)
 		}
 	}
 	k := [2]int{min(a0, b0), max(a0, b0)}
@@ -2183,25 +2294,31 @@ def_eq :: proc(a0, b0: int) -> bool {
 	if ctx_floor == 0 && keyed && val_pat != 0 {
 		if r, ok := lc_get(&lc_defeq, -k[0] - 1, k[1], val_pat); ok {
 			if diag_on { diag_hit += 1; diag_vh += 1 }
-			return r != 0
-		}
-	}
-	if ctx_floor == 0 && keyed && type_pat != 0 && !tpat_saturated {
-		if r, ok := lc_get(&lc_defeq, k[0], -k[1] - 1, type_pat); ok {
-			if diag_on { diag_hit += 1; diag_th += 1 }
+			zeta_hit = true
 			return r != 0
 		}
 	}
 	if keyed {
 		if r, ok := lc_get(&lc_defeq, k[0], k[1], -ctx_key()); ok {
 			if diag_on { diag_hit += 1; diag_sh += 1 }
-			return r != 0
+			flags_set(flags_get() | (r >> 1))
+			return r & 1 != 0
 		}
 	}
 	saved_d, saved_w, saved_z, saved_t := deq_dep, whnf_dep, zeta_hit, type_maybe
 	deq_dep, whnf_dep, zeta_hit, type_maybe = false, false, false, false
 	wm := len(exprs)
-	r := def_eq_raw(a0, b0)
+	tree_f0 := fuel
+	r: bool
+	if m := unused_binders(a0, b0); m > 0 && !no_strip {
+		if diag_on do diag_strip += 1
+		r = def_eq_stripped(a0, b0, m)
+	} else {
+		r = def_eq_raw(a0, b0)
+	}
+	if tree_depth > 0 && def_eq_depth <= tree_depth && fuel - tree_f0 >= tree_min {
+		fmt.eprintfln("TREE %d fuel %d r %v ictx %d ab %v  %s  =?=  %s", def_eq_depth, fuel - tree_f0, r, len(ictx), aborted, expr_str(a0, 4), expr_str(b0, 4))
+	}
 	// Snapshot before restoring the caller. The counters have to see this
 	// frame's flags, not the parent's.
 	ld, lz, lw, lt := deq_dep, zeta_hit, whnf_dep, type_maybe
@@ -2211,7 +2328,9 @@ def_eq :: proc(a0, b0: int) -> bool {
 	deq_dep = saved_d || deq_dep
 	whnf_dep = saved_w || whnf_dep
 	zeta_hit = saved_z || zeta_hit
-	type_maybe = saved_t
+	// A `false` that rests on a rule not applying here makes the caller's
+	// `false` rest on it too. A caller that ends `true` ignores the flag.
+	type_maybe = saved_t || (!r && lt)
 	if len(exprs) - wm > gc_min do gc_region(wm, -1)
 	if !aborted && !fuel_out {
 		if share && !sens {
@@ -2223,9 +2342,6 @@ def_eq :: proc(a0, b0: int) -> bool {
 		} else if r && lz && !ld && !lw && ctx_floor == 0 && keyed {
 			if diag_on do diag_vs += 1
 			lc_put(&lc_defeq, -k[0] - 1, k[1], val_pat, 1, k[1])
-		} else if r && (ld || lw) && ctx_floor == 0 && keyed && !tpat_saturated {
-			if diag_on do diag_ts += 1
-			lc_put(&lc_defeq, k[0], -k[1] - 1, type_pat, 1, k[1])
 		} else if keyed {
 			if diag_on {
 				diag_ss += 1
@@ -2242,7 +2358,12 @@ def_eq :: proc(a0, b0: int) -> bool {
 				else if !r && lt do diag_rt += 1
 				else do diag_wide += 1
 			}
-			lc_put(&lc_defeq, k[0], k[1], -ctx_key(), r ? 1 : 0, k[1])
+			read := 0
+			if ld do read |= F_DEQ
+			if lw do read |= F_WHNF
+			if lz do read |= F_ZETA
+			if !r && lt do read |= F_MAYBE
+			lc_put(&lc_defeq, k[0], k[1], -ctx_key(), (r ? 1 : 0) | (read << 1), k[1])
 		} else {
 			if diag_on do diag_ms += 1
 			lc_put(&lc_defeq, k[0], k[1], 0, r ? 1 : 0, k[1])
@@ -2321,20 +2442,20 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	// shared. A false result might flip under other binder types.
 	if !definitely_not_proof(a) && !definitely_not_proof(b) {
 		saved := failure
+		before := flags_get()
 		ta, ok := infer(a)
 		if ok && is_prop(ta) {
 			tb, ok2 := infer(b)
 			if ok2 {
 				eq := def_eq(ta, tb)
-				// Proof irrelevance of two closed propositions is the same under
-				// every binder. An open proposition, or a comparison that itself
-				// read the context, stays on the stamp.
-				if !eq || deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+				// Whether an open term is a proof, and of what, is decided by
+				// the binders in scope, even when the proposition is closed.
+				if !eq || ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 				return eq
 			}
 		}
 		failure = saved
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 	}
 	// literals
 	if ea.kind == .NatLit && eb.kind == .NatLit do return ea.a == eb.a
@@ -2414,6 +2535,7 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 	if try_eta_struct(a, b) || try_eta_struct(b, a) do return true
 	if !definitely_not_proof(a) && !definitely_not_proof(b) { // unit-like types: all elements are equal
 		saved := failure
+		before := flags_get()
 		ta, ok := infer(a)
 		if ok {
 			wt := whnf(ta)
@@ -2423,14 +2545,14 @@ def_eq_raw :: proc(a0, b0: int) -> bool {
 				if ind, f := env[exprs[uh].a]; f && ind.kind == .Induct && len(ind.ctors) == 1 && ind.nindices == 0 && env[ind.ctors[0]].nfields == 0 && len(uargs) == ind.nparams {
 					tb, ok2 := infer(b)
 					if ok2 && def_eq(ta, tb) {
-						if deq_dep || whnf_dep || zeta_hit || ctx_keyed(ta) || ctx_keyed(tb) do deq_dep = true
+						if ctx_keyed(a) || ctx_keyed(b) do deq_dep = true
 						return true
 					}
 				}
 			}
 		}
 		failure = saved
-		type_maybe = true
+		flags_set(before | F_MAYBE)
 	}
 	// structural comparison of neutral terms
 	if ea.kind == .Proj && eb.kind == .Proj {
@@ -3023,6 +3145,7 @@ purge :: proc() {
 	resize(&fv_name, wm_fv)
 	resize(&fv_depth, wm_fv)
 	cache_gen += 1
+	for _, v in canon_memo do delete(v)
 	delete(canon_memo); canon_memo = nil
 	delete(sem_memo); sem_memo = nil
 	// The spine tables key on expression ids from this declaration. The cache
@@ -3042,7 +3165,9 @@ drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
 	base := uintptr(ptr)
 	start := base + uintptr(length * elem)
 	start = (start + page - 1) & ~(page - 1)
-	end := base + uintptr(capacity * elem)
+	// Whole pages only. madvise rounds the length up, and the page that holds
+	// the end of this array also holds the start of the next heap block.
+	end := (base + uintptr(capacity * elem)) & ~(page - 1)
 	if start >= end do return
 	_ = linux.madvise(rawptr(start), uint(end - start), .DONTNEED)
 }
@@ -3050,18 +3175,24 @@ drop_tail :: proc(ptr: rawptr, elem, length, capacity: int) {
 release_expr_tail :: proc() {
 	drop_tail(raw_data(exprs[:]), size_of(Expr), len(exprs), cap(exprs))
 	drop_tail(raw_data(born[:]), size_of(u32), len(born), cap(born))
-	drop_tail(raw_data(hc_next[:]), size_of(int), len(hc_next), cap(hc_next))
+	drop_tail(raw_data(hc_next[:]), size_of(i32), len(hc_next), cap(hc_next))
 }
 
-reserve_expr_store :: proc() {
-	s := os.get_env("STORE_CAP", context.allocator)
-	if s == "" do return
-	n, ok := strconv.parse_int(s)
-	if !ok || n <= 0 do return
+// STORE_CAP=n reserves n expressions. Without it, an export of a gigabyte or
+// more gets a reservation from its size: an expression line is about 59 bytes,
+// so size/40 leaves room for what checking adds. Small exports reserve nothing.
+reserve_expr_store :: proc(file_size: i64) {
+	n := 0
+	asked := false
+	if s := os.get_env("STORE_CAP", context.allocator); s != "" {
+		if v, ok := strconv.parse_int(s); ok && v > 0 { n = v; asked = true }
+	}
+	if n == 0 && file_size >= 1 << 30 do n = int(file_size / 40)
+	if n == 0 do return
 	reserve(&exprs, n)
 	reserve(&born, n)
 	reserve(&hc_next, n)
-	if cap(exprs) < n || cap(born) < n || cap(hc_next) < n {
+	if asked && (cap(exprs) < n || cap(born) < n || cap(hc_next) < n) {
 		fmt.eprintln("cannot reserve expression table")
 		os.exit(2)
 	}
@@ -3070,11 +3201,10 @@ reserve_expr_store :: proc() {
 reset_spines :: proc() {
 	delete(pat_of); pat_of = nil
 	delete(vpat_of); vpat_of = nil
-	delete(tpat_of); tpat_of = nil
-	next_pat, next_vpat, next_tpat = 1, 1, 1
-	pat_id, val_pat, type_pat = 0, 0, 0
+	delete(ctx_of); ctx_of = nil
+	next_pat, next_vpat = 1, 1
+	pat_id, val_pat = 0, 0
 	let_mask = 0
-	tpat_saturated = false
 }
 
 clear_caches :: proc() {
@@ -3406,7 +3536,41 @@ next_export_line :: proc(r: ^bufio.Reader) -> (line: string, done: bool) {
 	return string(frag), false
 }
 
+// MEMPROF=1 lists the allocation sites that still hold memory when the run
+// ends, largest first. Tracking every allocation is slow; use a small export.
+mem_track: mem.Tracking_Allocator
+mem_on: bool
+mem_report :: proc() {
+	if !mem_on do return
+	Site :: struct { bytes, count: int }
+	sites := make(map[string]Site, 1024, mem_track.backing)
+	for _, e in mem_track.allocation_map {
+		k := fmt.aprintf("%s:%d", e.location.file_path, e.location.line, allocator = mem_track.backing)
+		v := sites[k]
+		v.bytes += e.size; v.count += 1
+		sites[k] = v
+	}
+	Row :: struct { k: string, v: Site }
+	rows := make([dynamic]Row, mem_track.backing)
+	for k, v in sites do append(&rows, Row{k, v})
+	slice.sort_by(rows[:], proc(a, b: Row) -> bool { return a.v.bytes > b.v.bytes })
+	fmt.eprintfln("MEM live %d bytes in %d allocations, total %d allocs %d frees", mem_track.current_memory_allocated, len(mem_track.allocation_map), mem_track.total_allocation_count, mem_track.total_free_count)
+	for r, i in rows { if i >= 30 do break; fmt.eprintfln("MEM %12d bytes %9d allocs  %s", r.v.bytes, r.v.count, r.k) }
+}
+
 main :: proc() {
+	if os.get_env("MEMPROF", context.allocator) != "" {
+		mem.tracking_allocator_init(&mem_track, context.allocator)
+		mem_on = true
+	}
+	// An assignment to `context` inside the `if` would end with its scope.
+	alloc := context.allocator
+	if mem_on do alloc = mem.tracking_allocator(&mem_track)
+	context.allocator = alloc
+	check_export()
+}
+
+check_export :: proc() {
 	if len(os.args) < 2 {
 		fmt.eprintln("usage: kernel file.ndjson")
 		os.exit(2)
@@ -3418,7 +3582,8 @@ main :: proc() {
 	}
 	rd: bufio.Reader
 	bufio.reader_init(&rd, os.to_reader(f), 1 << 20)
-	reserve_expr_store()
+	fsize, _ := os.file_size(f)
+	reserve_expr_store(fsize)
 	nosem = os.get_env("NOSEM", context.allocator)
 	nopf = os.get_env("NOPF", context.allocator)
 	append(&names, "")                           // name 0 = anonymous
@@ -3432,8 +3597,11 @@ main :: proc() {
 	if s := os.get_env("BETA_NODES", context.allocator); s != "" do beta_nodes = strconv.atoi(s)
 	only_decl = os.get_env("ONLY", context.allocator)
 	diag_on = os.get_env("DIAG", context.allocator) != ""
-	if s := os.get_env("SPINE_MAX", context.allocator); s != "" {
-		if n, ok := strconv.parse_int(s); ok && n > 0 do spine_max = n
+	no_strip = os.get_env("NOSTRIP", context.allocator) != ""
+	if s := os.get_env("TREE", context.allocator); s != "" {
+		parts := strings.split(s, ",")
+		if n, ok := strconv.parse_int(parts[0]); ok do tree_depth = n
+		if len(parts) > 1 { if n, ok := strconv.parse_int(parts[1]); ok do tree_min = n }
 	}
 	if os.get_env("NOGC", context.allocator) != "" do gc_min = 1 << 60
 	if g := os.get_env("GCMIN", context.allocator); g != "" do gc_min = strconv.atoi(g)
@@ -3509,7 +3677,7 @@ main :: proc() {
 		if id, ok := jobj(v, "ie"); ok {
 			i := jint(id)
 			e: Expr
-			if x, ok2 := jobj(v, "bvar"); ok2 { e = Expr{kind = .BVar, a = jint(x), lbr = jint(x) + 1} }
+			if x, ok2 := jobj(v, "bvar"); ok2 { e = Expr{kind = .BVar, a = jint(x), lbr = lbr_of_bvar(jint(x))} }
 			else if x, ok2 := jobj(v, "sort"); ok2 { e = Expr{kind = .Sort, a = jint(x)} }
 			else if x, ok2 := jobj(v, "const"); ok2 {
 				nm, _ := jobj(x, "name")
@@ -3559,6 +3727,7 @@ main :: proc() {
 				fmt.eprintln("malformed export: forward/invalid expr reference at id", i)
 				os.exit(2)
 			}
+			e.low = expr_low(&e)
 			set_at(&exprs, i, e)
 			hc_register(i)
 			continue
@@ -3665,6 +3834,7 @@ main :: proc() {
 	}
 	}
 	fmt.printf("\n%d accepted, %d rejected, %d skipped\n", n_ok, n_fail, n_skip)
+	mem_report()
 	if os.get_env("PROF", context.allocator) != "" {
 		for p in Phase do fmt.eprintfln("PROF %v: %d", p, phase_counts[int(p)])
 		fmt.eprintfln("STALE %d gc %d", lc_stale, gc_runs)
